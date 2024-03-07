@@ -5,7 +5,7 @@ if [ "$USEFUL_FUNCTIONS" != yes ]; then
 else
     return 0
 fi 
-echo "hola"
+
 # Personal scripts rewritten to functions, so they can be called directly
 # REWRITE THIS FUNCTION SO IT CAN TAKE AN ARBITRARY AMOUNT OF SWITCHES
 convert_png_to_jpg() {
