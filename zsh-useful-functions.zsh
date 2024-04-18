@@ -84,3 +84,26 @@ shrink_png_lossy() {
 		pngquant --skip-if-larger --force --ext "-new.png" --quality "$1" --speed 1 --strip "$2"
 	fi
 }
+
+# jdupes -R -B /
+# duperemove -r -d -A /
+
+# Converts root read-only subvolumes created by snapper to read-write.
+# Useful when trying to dedupe with dupremove or jdupes.
+btrfs_snapper_root_rw(){
+	for i in /.snapshots/**/snapshot
+	do
+		btrfs subvolume snapshot "$i" "${i}_AUX"
+		btrfs subvolume delete "$i"
+	done
+}
+
+# Converts back root snapshots to read-write.
+# Useful after a dedupe has been done.
+btrfs_snapper_root_ro(){
+	for i in /.snapshots/**/snapshot_AUX
+	do
+		btrfs subvolume snapshot -r "$i" "${i::-4}"
+		btrfs subvolume delete "$i"
+	done
+}
