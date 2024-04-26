@@ -137,3 +137,35 @@ rand_num(){
     # Only gets the numbers
     tr -dc "0-9" < /dev/random | head -c "$LEN"
 }
+
+create_random_files(){
+    if [ "$#" -eq "0" ];
+    then
+        echo "Usage: create_random_files <number-of-files> <min-size> <max-size> <directory>"
+        return 1
+    fi
+
+    if [ "$#" -eq "4" ]
+    then
+        local -r NUM_FILES=$1
+        local -r MIN=$2
+        local -r MAX=$3
+        
+        if [ "${4: -1}" = "/" ];
+        then
+            local -r DIR=${4::-1}
+        else
+            local -r DIR=$4
+        fi
+
+        echo $DIR
+        # for (( i=0; i<$NUM_FILES; i++ ))
+        # do
+        #     dd if=/dev/urandom of="$DIR/$(rand)" bs=$(( $MIN + $(rand_num) % MAX ))M count=1
+        # done
+        # unset i
+    else
+        echo "Not enough arguments"
+        return 1
+    fi    
+}
