@@ -107,3 +107,33 @@ btrfs_snapper_root_ro(){
 		btrfs subvolume delete "$i"
 	done
 }
+
+
+# Generates a random string comprised of numbers and letters
+# $1: String length. Defaults to 16
+rand(){
+    local -r LEN="${1:-16}"
+
+    # Only gets numbers and letters
+    tr -dc "a-zA-Z0-9" < /dev/random | head -c "$LEN"
+}
+
+
+# Generates a random string comprised of letters
+# $1: String length. Defaults to 16
+rand_letters(){
+    local -r LEN="${1:-16}"
+
+    # Only gets the letters
+    tr -dc "a-zA-Z" < /dev/random | head -c "$LEN"
+}
+
+
+# Generates a random number
+# $1: String length. Defaults to 16
+rand_num(){
+    local -r LEN="${1:-16}"
+
+    # Only gets the numbers
+    tr -dc "0-9" < /dev/random | head -c "$LEN"
+}
