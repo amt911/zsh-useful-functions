@@ -158,12 +158,11 @@ create_random_files(){
             local -r DIR=$4
         fi
 
-        echo $DIR
-        # for (( i=0; i<$NUM_FILES; i++ ))
-        # do
-        #     dd if=/dev/urandom of="$DIR/$(rand)" bs=$(( $MIN + $(rand_num) % MAX ))M count=1
-        # done
-        # unset i
+        for (( i=0; i<$NUM_FILES; i++ ))
+        do
+            dd if=/dev/urandom of="$DIR/$(rand)" bs=$(( $MIN + $(rand_num) % MAX ))M count=1
+        done
+        unset i
     else
         echo "Not enough arguments"
         return 1
