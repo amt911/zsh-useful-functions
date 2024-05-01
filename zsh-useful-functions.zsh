@@ -85,8 +85,8 @@ shrink_png_lossy() {
 	fi
 }
 
-# jdupes -R -B /
-# duperemove -r -d -A /
+# jdupes -rB /
+# duperemove -rdA /
 
 # Converts root read-only subvolumes created by snapper to read-write.
 # Useful when trying to dedupe with dupremove or jdupes.
@@ -167,4 +167,22 @@ create_random_files(){
         echo "Not enough arguments"
         return 1
     fi    
+}
+
+# $1: First hash file
+# $2: Second hash file
+check_hashes(){
+    # Strip filename from first hash file
+    awk '{print $1}' $1 > aux
+
+    while IFS= read -r line; do
+        if grep -i "$line" "$2";
+        then
+            echo -e "$line: ${GREEN}OK${NO_COLOR}"
+        else
+            echo -e "$line: ${RED}NOT FOUND${NO_COLOR}"
+            sleep 3
+        fi
+    done < "aux"
+    rm aux
 }
