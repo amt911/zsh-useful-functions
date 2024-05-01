@@ -181,7 +181,6 @@ check_hashes(){
             echo -e "$line: ${GREEN}OK${NO_COLOR}"
         else
             echo -e "$line: ${RED}NOT FOUND${NO_COLOR}"
-            sleep 3
         fi
     done < "aux"
     rm aux
