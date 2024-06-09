@@ -202,7 +202,7 @@ check_binary_contents(){
     if [ ! -d "$1/$2" ] || [ ! -d "$1/$3" ];
     then
         echo "One of the subfolders (or both) does not exist"
-        exit 33
+        return 33
     fi
 
     local -r THRESHOLD="1073741824"      # Actual THRESHOLD in bytes. MUST BE POWER OF 2 AND AT LEAST 2^4 (16)
