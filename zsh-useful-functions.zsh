@@ -185,3 +185,117 @@ check_hashes(){
     done < "aux"
     rm aux
 }
+
+# Checks if two files are the same by comparing every byte of both files. 
+# It is a different approach than using hashes. I recommend using hashes 
+# first and then trying this function to double check.
+check_binary_contents(){
+    if [ "$#" -lt "3" ];
+    then
+        echo "You have to provide the following arguments:
+1: Path to folder where the two folders reside
+2: Original folder inside \$1
+3: Second folder inside \$1"
+        return 1
+    fi
+
+    if [ ! -d "$1/$2" ] || [ ! -d "$1/$3" ];
+    then
+        echo "One of the subfolders (or both) does not exist"
+        exit 33
+    fi
+
+    local -r THRESHOLD="1073741824"      # Actual THRESHOLD in bytes. MUST BE POWER OF 2 AND AT LEAST 2^4 (16)
+    # readonly THRESHOLD="512"      # Actual THRESHOLD in bytes. MUST BE POWER OF 2 AND AT LEAST 2^4 (16)    
+
+    local old_ifs=IFS
+    local segments_a segments_b remainder_a remainder_b
+    local error_segment err_code
+    local diff_res
+
+    while IFS= read -r -d '' file
+    do
+        other_dir=$(echo "$file" | sed "s/\/$2\//\/$3\//")
+        echo -e "--------------------------------------------- File $file ---------------------------------------------\n"
+        if [ -f "$other_dir" ];
+        then
+            segments_a=$(($(du -sb "$file" | cut -f1) / THRESHOLD))
+            remainder_a=$(($(du -sb "$file" | cut -f1) % THRESHOLD))
+
+            segments_b=$(($(du -sb "$other_dir" | cut -f1) / THRESHOLD))
+            remainder_b=$(($(du -sb "$other_dir" | cut -f1) % THRESHOLD))
+
+            error_segment="0"
+
+             # Enter if both files have the same number of segments and remainder.
+            if [ "$segments_a" -eq "$segments_b" ] && [ "$remainder_a" -eq "$remainder_b" ];
+            then
+                # If the file does not have to be splitted, we enter to the else clause
+                if [ "$segments_a" -gt "0" ];
+                then
+                    # Iteration for every segment of both files
+                    for (( i=0; i<segments_a; i++ ))
+                    do
+                        diff_res=$(diff <(od -tx1 --skip-bytes="$(( i * THRESHOLD ))" --read-bytes="$THRESHOLD" "$file") <(od -tx1 --skip-bytes="$(( i * THRESHOLD ))" --read-bytes="$THRESHOLD" "$other_dir"))
+                        
+                        err_code="$?"
+                        
+                        # Comparing both file segments
+                        if [ "$err_code" -ne "0" ];
+                        then
+                            echo -e "\n$file and $other_dir are different!!!\n"
+                            echo -e "$diff_res\n"
+                            error_segment="1"
+                        fi
+                    done
+
+                    # To avoid printing lots of messages when a segment is the same, we just echo it outside the loop once.
+                    if [ "$error_segment" -eq "0" ];
+                    then
+                        echo -e "Both files are the same\n"
+                    fi
+
+                    # If the file size was not aligned with a power of 2, we check the last remaining segment.
+                    if [ "$remainder_a" -gt "0" ];
+                    then
+                        diff_res=$(diff <(od -tx1 --skip-bytes="$(( segments_a * THRESHOLD ))" --read-bytes="$remainder_a" "$file") <(od -tx1 --skip-bytes="$(( segments_b * THRESHOLD ))" --read-bytes="$remainder_b" "$other_dir"))
+                        
+                        err_code="$?"
+
+                        if [ "$err_code" -ne "0" ];
+                        then
+                            echo -e "$file and $other_dir are different!!!\n"
+                            echo -e "$diff_res\n"
+                        else
+                            echo -e "Both files are the same\n"
+                        fi                    
+                    fi
+
+                else
+                        # This clause is used when the file does not have to be splitted and can be checked all at once.
+                        diff_res=$(diff <(od -tx1 "$file") <(od -tx1 "$other_dir"))
+                        
+                        err_code="$?"
+
+                        if [ "$err_code" -ne "0" ];
+                        then
+                            echo -e "$file and $other_dir are different!!!\n"
+                            echo -e "$diff_res\n"
+                        else
+                            echo -e "Both files are the same\n"
+                        fi
+                fi
+            else
+                echo -e "$file and $other_dir are different and have different size!!!\n"
+            fi
+        else
+            echo -e "File $file does not exist on $3\n"
+        fi
+
+        echo -e "---------------------------------------------------------------------------------------------------------------------------------------------\n"
+    done <  <(find "$1/$2" -type f -print0)
+
+    IFS=$old_ifs
+
+    unset file
+}
