@@ -205,8 +205,8 @@ check_binary_contents(){
         return 33
     fi
 
-    local -r THRESHOLD="1073741824"      # Actual THRESHOLD in bytes. MUST BE POWER OF 2 AND AT LEAST 2^4 (16)
-    # readonly THRESHOLD="512"      # Actual THRESHOLD in bytes. MUST BE POWER OF 2 AND AT LEAST 2^4 (16)    
+    # local -r THRESHOLD="1073741824"      # Actual THRESHOLD in bytes. MUST BE POWER OF 2 AND AT LEAST 2^4 (16)
+    local -r THRESHOLD="512"      # Actual THRESHOLD in bytes. MUST BE POWER OF 2 AND AT LEAST 2^4 (16)    
 
     local old_ifs=IFS
     local segments_a segments_b remainder_a remainder_b
@@ -230,60 +230,42 @@ check_binary_contents(){
              # Enter if both files have the same number of segments and remainder.
             if [ "$segments_a" -eq "$segments_b" ] && [ "$remainder_a" -eq "$remainder_b" ];
             then
-                # If the file does not have to be splitted, we enter to the else clause
-                if [ "$segments_a" -gt "0" ];
+                # Iteration for every segment of both files
+                for (( i=0; i<segments_a; i++ ))
+                do
+                    diff_res=$(diff <(od -tx1 --skip-bytes="$(( i * THRESHOLD ))" --read-bytes="$THRESHOLD" "$file") <(od -tx1 --skip-bytes="$(( i * THRESHOLD ))" --read-bytes="$THRESHOLD" "$other_dir"))
+                    
+                    err_code="$?"
+                    
+                    # Comparing both file segments
+                    if [ "$err_code" -ne "0" ];
+                    then
+                        echo -e "\n$file and $other_dir are different!!!\n"
+                        echo -e "$diff_res\n"
+                        error_segment="1"
+                    fi
+                done
+
+                # To avoid printing lots of messages when a segment is the same, we just echo it outside the loop once.
+                if [ "$error_segment" -eq "0" ] && [ "$segments_a" -gt "0" ];
                 then
-                    # Iteration for every segment of both files
-                    for (( i=0; i<segments_a; i++ ))
-                    do
-                        diff_res=$(diff <(od -tx1 --skip-bytes="$(( i * THRESHOLD ))" --read-bytes="$THRESHOLD" "$file") <(od -tx1 --skip-bytes="$(( i * THRESHOLD ))" --read-bytes="$THRESHOLD" "$other_dir"))
-                        
-                        err_code="$?"
-                        
-                        # Comparing both file segments
-                        if [ "$err_code" -ne "0" ];
-                        then
-                            echo -e "\n$file and $other_dir are different!!!\n"
-                            echo -e "$diff_res\n"
-                            error_segment="1"
-                        fi
-                    done
+                    echo -e "Both files are the same\n"
+                fi
 
-                    # To avoid printing lots of messages when a segment is the same, we just echo it outside the loop once.
-                    if [ "$error_segment" -eq "0" ];
+                # If the file size was not aligned with a power of 2, we check the last remaining segment.
+                if [ "$remainder_a" -gt "0" ];
+                then
+                    diff_res=$(diff <(od -tx1 --skip-bytes="$(( segments_a * THRESHOLD ))" --read-bytes="$remainder_a" "$file") <(od -tx1 --skip-bytes="$(( segments_b * THRESHOLD ))" --read-bytes="$remainder_b" "$other_dir"))
+                    
+                    err_code="$?"
+
+                    if [ "$err_code" -ne "0" ];
                     then
+                        echo -e "$file and $other_dir are different!!!\n"
+                        echo -e "$diff_res\n"
+                    else
                         echo -e "Both files are the same\n"
-                    fi
-
-                    # If the file size was not aligned with a power of 2, we check the last remaining segment.
-                    if [ "$remainder_a" -gt "0" ];
-                    then
-                        diff_res=$(diff <(od -tx1 --skip-bytes="$(( segments_a * THRESHOLD ))" --read-bytes="$remainder_a" "$file") <(od -tx1 --skip-bytes="$(( segments_b * THRESHOLD ))" --read-bytes="$remainder_b" "$other_dir"))
-                        
-                        err_code="$?"
-
-                        if [ "$err_code" -ne "0" ];
-                        then
-                            echo -e "$file and $other_dir are different!!!\n"
-                            echo -e "$diff_res\n"
-                        else
-                            echo -e "Both files are the same\n"
-                        fi                    
-                    fi
-
-                else
-                        # This clause is used when the file does not have to be splitted and can be checked all at once.
-                        diff_res=$(diff <(od -tx1 "$file") <(od -tx1 "$other_dir"))
-                        
-                        err_code="$?"
-
-                        if [ "$err_code" -ne "0" ];
-                        then
-                            echo -e "$file and $other_dir are different!!!\n"
-                            echo -e "$diff_res\n"
-                        else
-                            echo -e "Both files are the same\n"
-                        fi
+                    fi                    
                 fi
             else
                 echo -e "$file and $other_dir are different and have different size!!!\n"
