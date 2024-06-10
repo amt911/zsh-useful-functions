@@ -240,7 +240,7 @@ check_binary_contents(){
                     # Comparing both file segments
                     if [ "$err_code" -ne "0" ];
                     then
-                        echo -e "\n$file and $other_dir are different!!!\n"
+                        echo -e "\n[ERROR] $file and $other_dir are different!!!\n"
                         echo -e "$diff_res\n"
                         error_segment="1"
                     fi
@@ -255,7 +255,7 @@ check_binary_contents(){
 
                     if [ "$err_code" -ne "0" ];
                     then
-                        echo -e "$file and $other_dir are different!!!\n"
+                        echo -e "[ERROR] $file and $other_dir are different!!!\n"
                         echo -e "$diff_res\n"
                         error_segment="1"
                     fi                    
@@ -264,15 +264,77 @@ check_binary_contents(){
                 # To avoid printing lots of messages when a segment is the same, we just echo it outside the loop once.
                 if [ "$error_segment" -eq "0" ];
                 then
-                    echo -e "Both files are the same\n"
+                    echo -e "[GOOD] Both files are the same\n"
                 fi                
             else
-                echo -e "$file and $other_dir are different and have different size!!!\n"
+                echo -e "[ERROR] $file and $other_dir are different and have different size!!!\n"
             fi
         else
-            echo -e "File $file does not exist on $3\n"
+            echo -e "[WARNING] File $file does not exist on $3\n"
         fi
 
+        echo -e "---------------------------------------------------------------------------------------------------------------------------------------------\n"
+    done <  <(find "$1/$2" -type f -print0)
+
+    IFS=$old_ifs
+
+    unset file
+}
+
+# Checks if two files are the same by comparing every byte of both files. 
+# It is a different approach than using hashes. I recommend using hashes 
+# first and then trying this function to double check.
+check_binary_contents_cmp(){
+    if [ "$#" -lt "3" ];
+    then
+        echo "You have to provide the following arguments:
+1: Path to folder where the two folders reside
+2: Original folder inside \$1
+3: Second folder inside \$1"
+        return 1
+    fi
+
+    if [ ! -d "$1/$2" ] || [ ! -d "$1/$3" ];
+    then
+        echo "One of the subfolders (or both) does not exist"
+        return 33
+    fi
+
+    local -r THRESHOLD="1073741824"      # Actual THRESHOLD in bytes. MUST BE POWER OF 2 AND AT LEAST 2^4 (16)
+    # local -r THRESHOLD="512"      # Actual THRESHOLD in bytes. MUST BE POWER OF 2 AND AT LEAST 2^4 (16)    
+
+    local old_ifs=IFS
+    local size_a size_b
+    local err_code
+    local diff_res
+
+    while IFS= read -r -d '' file
+    do
+        other_dir=$(echo "$file" | sed "s/\/$2\//\/$3\//")
+        echo -e "--------------------------------------------- File $file ---------------------------------------------\n"
+        if [ -f "$other_dir" ];
+        then
+            size_a=$(du -sb "$file" | cut -f1)
+            size_b=$(du -sb "$other_dir" | cut -f1)
+
+            if [ "$size_a" -eq "$size_b" ];
+            then
+                cmp "$file" "$other_dir"
+                err_code="$?"
+
+
+                if [ "$err_code" -ne "0" ];
+                then
+                    echo -e "[ERROR] $file and $other_dir are different!!!\n"                  
+                else
+                    echo -e "[GOOD] Both files are the same\n"
+                fi
+            else
+                echo -e "[ERROR] $file and $other_dir are different and have different size!!!\n"
+            fi
+        else
+            echo -e "[WARNING] File $file does not exist on $3\n"
+        fi                
         echo -e "---------------------------------------------------------------------------------------------------------------------------------------------\n"
     done <  <(find "$1/$2" -type f -print0)
 
