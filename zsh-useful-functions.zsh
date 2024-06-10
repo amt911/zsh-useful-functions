@@ -217,7 +217,7 @@ check_binary_contents(){
     do
         other_dir=$(echo "$file" | sed "s/\/$2\//\/$3\//")
         echo -e "--------------------------------------------- File $file ---------------------------------------------\n"
-        if [ -f "$file" ] && [ -f "$other_dir" ];
+        if [ -f "$other_dir" ];
         then
             segments_a=$(($(du -sb "$file" | cut -f1) / THRESHOLD))
             remainder_a=$(($(du -sb "$file" | cut -f1) % THRESHOLD))
@@ -270,8 +270,7 @@ check_binary_contents(){
                 echo -e "$file and $other_dir are different and have different size!!!\n"
             fi
         else
-            [ -f "$file" ] && echo -e "File $file does not exist on $3\n"
-            [ -f "$other_dir" ] && echo -e "File $other_dir does not exist on $2\n"
+            echo -e "File $file does not exist on $3\n"
         fi
 
         echo -e "---------------------------------------------------------------------------------------------------------------------------------------------\n"
