@@ -246,12 +246,6 @@ check_binary_contents(){
                     fi
                 done
 
-                # To avoid printing lots of messages when a segment is the same, we just echo it outside the loop once.
-                if [ "$error_segment" -eq "0" ] && [ "$segments_a" -gt "0" ];
-                then
-                    echo -e "Both files are the same\n"
-                fi
-
                 # If the file size was not aligned with a power of 2, we check the last remaining segment.
                 if [ "$remainder_a" -gt "0" ];
                 then
@@ -263,10 +257,15 @@ check_binary_contents(){
                     then
                         echo -e "$file and $other_dir are different!!!\n"
                         echo -e "$diff_res\n"
-                    else
-                        echo -e "Both files are the same\n"
+                        error_segment="1"
                     fi                    
                 fi
+
+                # To avoid printing lots of messages when a segment is the same, we just echo it outside the loop once.
+                if [ "$error_segment" -eq "0" ];
+                then
+                    echo -e "Both files are the same\n"
+                fi                
             else
                 echo -e "$file and $other_dir are different and have different size!!!\n"
             fi
