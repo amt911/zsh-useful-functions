@@ -352,3 +352,70 @@ iommu_groups(){
         done;
     done;
 }
+
+
+mount_veracrypt(){
+
+    if [ "$#" -eq "0" ] || ! echo "$1" | grep -E "^[01]{1}";
+    then
+        echo "Usage: mount_veracrypt <0: ascending mount directory / 1: descending mount directory> <partitions>"
+        return 1
+    fi
+
+
+    local -r ASC_DESC="$1"
+
+    # Shifts by 1 the argument list to get all the partition names.
+    shift
+
+    local -r PARTITIONS=( "$@" )
+
+
+    echo -n "Password: "
+    read -rs password
+
+    echo -ne "\nPIM: "
+    read -rs pim
+
+    if [ "$ASC_DESC" -eq "0" ];
+    then
+        for (( i=0; i<${#PARTITIONS[@]}; i++ ))
+        do
+            echo "$password" | cryptsetup --type tcrypt --veracrypt-pim "$pim" open "${PARTITIONS[i]}" "veracrypt$(( i + 1 ))" -
+            mount --mkdir "/dev/mapper/veracrypt$(( i + 1 ))" "/mnt/veracrypt$(( i + 1 ))"
+        done
+    else
+        for (( i=0; i<${#PARTITIONS[@]}; i++ ))
+        do
+            echo "$password" | cryptsetup --type tcrypt --veracrypt-pim "$pim" open "${PARTITIONS[i]}" "veracrypt$(( 64 - i ))" -
+            mount --mkdir "/dev/mapper/veracrypt$(( 64 - i ))" "/mnt/veracrypt$(( 64 - i ))"
+        done
+    fi
+
+    # Unsets both password and PIM to avoid a leak
+    unset password
+    unset pim
+}
+
+
+mount_partitions(){
+    if [ "$#" -eq "0" ];
+    then
+        echo "Usage: $0 <devices-to-be-decrypted>"
+        exit 1
+    fi
+
+    local -r PARTITIONS=( "$@" )
+
+    echo -n "Password: "
+    read -rs password
+
+    for i in "${PARTITIONS[@]}"
+    do
+        local dm_name=$(echo "$i" | cut -d/ -f3)
+
+        echo "$password" | cryptsetup open $i $dm_name -
+    done
+
+    unset password
+}
