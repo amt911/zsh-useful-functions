@@ -382,13 +382,23 @@ mount_veracrypt(){
         for (( i=0; i<${#PARTITIONS[@]}; i++ ))
         do
             echo "$password" | cryptsetup --type tcrypt --veracrypt-pim "$pim" open "${PARTITIONS[i]}" "veracrypt$(( i + 1 ))" -
+
+            [ "$?" -ne "0" ] && return 1
+
             mount --mkdir "/dev/mapper/veracrypt$(( i + 1 ))" "/mnt/veracrypt$(( i + 1 ))"
+
+            [ "$?" -ne "0" ] && return 1
         done
     else
         for (( i=0; i<${#PARTITIONS[@]}; i++ ))
         do
             echo "$password" | cryptsetup --type tcrypt --veracrypt-pim "$pim" open "${PARTITIONS[i]}" "veracrypt$(( 64 - i ))" -
+
+            [ "$?" -ne "0" ] && return 1
+
             mount --mkdir "/dev/mapper/veracrypt$(( 64 - i ))" "/mnt/veracrypt$(( 64 - i ))"
+
+            [ "$?" -ne "0" ] && return 1
         done
     fi
 
@@ -402,7 +412,7 @@ mount_partitions(){
     if [ "$#" -eq "0" ];
     then
         echo "Usage: $0 <devices-to-be-decrypted>"
-        exit 1
+        return 1
     fi
 
     local -r PARTITIONS=( "$@" )
@@ -415,6 +425,8 @@ mount_partitions(){
         local dm_name=$(echo "$i" | cut -d/ -f3)
 
         echo "$password" | cryptsetup open $i $dm_name -
+
+        [ "$?" -ne "0" ] && return 1
     done
 
     unset password
