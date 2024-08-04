@@ -354,7 +354,7 @@ iommu_groups(){
 }
 
 
-mount_veracrypt(){
+open_mount_veracrypt(){
 
     if [ "$#" -eq "0" ] || ! echo "$1" | grep -E "^[01]{1}";
     then
@@ -408,7 +408,7 @@ mount_veracrypt(){
 }
 
 
-mount_partitions(){
+open_partitions(){
     if [ "$#" -eq "0" ];
     then
         echo "Usage: $0 <devices-to-be-decrypted>"
