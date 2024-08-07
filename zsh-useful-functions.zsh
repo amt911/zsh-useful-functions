@@ -411,20 +411,54 @@ open_mount_veracrypt(){
 open_partitions(){
     if [ "$#" -eq "0" ];
     then
-        echo "Usage: $0 <devices-to-be-decrypted>"
+        echo "Usage: $0 [-k <keyfile-location>] <devices-to-be-decrypted>"
         return 1
     fi
 
+    local -r OPT_STR=":k:"
+
+    # man bash -> OPTIND getopts
+    local has_keyfile="1" keyfile_loc=""
+
+    while getopts ":k:" arg; 
+    do
+        case $arg in
+            "k")
+                has_keyfile="0"
+                keyfile_loc="$OPTARG"
+                ;;
+                
+            "?")
+                echo "Invalid option"
+                return 1
+                ;;
+            *)
+                echo "Unknown error"
+                return 2
+                ;;
+        esac
+    done
+
+    shift $(( OPTIND - 1 ))
+
     local -r PARTITIONS=( "$@" )
 
-    echo -n "Password: "
-    read -rs password
+    if [ "$has_keyfile" -eq "1" ];
+    then
+        echo -n "Password: "
+        read -rs password
+    fi
 
     for i in "${PARTITIONS[@]}"
     do
         local dm_name=$(echo "$i" | cut -d/ -f3)
 
-        echo "$password" | cryptsetup open $i $dm_name -
+        if [ "$has_keyfile" -eq "0" ];
+        then
+            cryptsetup --key-file "$keyfile_loc" open $i $dm_name
+        else
+            echo "$password" | cryptsetup open $i $dm_name -
+        fi
 
         [ "$?" -ne "0" ] && return 1
     done
