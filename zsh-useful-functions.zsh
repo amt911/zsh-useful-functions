@@ -356,7 +356,7 @@ iommu_groups(){
 
 open_mount_veracrypt(){
 
-    if [ "$#" -eq "0" ] || ! echo "$1" | grep -E "^[01]{1}";
+    if [ "$#" -eq "0" ] || ! echo "$1" | grep -E "^[01]{1}" > /dev/null;
     then
         echo "Usage: mount_veracrypt <0: ascending mount directory / 1: descending mount directory> <partitions>"
         return 1
@@ -379,7 +379,7 @@ open_mount_veracrypt(){
 
     if [ "$ASC_DESC" -eq "0" ];
     then
-        for (( i=0; i<${#PARTITIONS[@]}; i++ ))
+        for (( i=1; i<=${#PARTITIONS[@]}; i++ ))
         do
             echo "$password" | cryptsetup --type tcrypt --veracrypt-pim "$pim" open "${PARTITIONS[i]}" "veracrypt$(( i + 1 ))" -
 
@@ -390,7 +390,7 @@ open_mount_veracrypt(){
             [ "$?" -ne "0" ] && return 1
         done
     else
-        for (( i=0; i<${#PARTITIONS[@]}; i++ ))
+        for (( i=1; i<=${#PARTITIONS[@]}; i++ ))
         do
             echo "$password" | cryptsetup --type tcrypt --veracrypt-pim "$pim" open "${PARTITIONS[i]}" "veracrypt$(( 64 - i ))" -
 
