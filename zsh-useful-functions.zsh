@@ -385,7 +385,7 @@ open_mount_veracrypt(){
 
             [ "$?" -ne "0" ] && return 1
 
-            mount --mkdir "/dev/mapper/veracrypt$(( i + 1 ))" "/mnt/veracrypt$(( i + 1 ))"
+            mount --mkdir "/dev/mapper/veracrypt$(( i ))" "/mnt/veracrypt$(( i ))"
 
             [ "$?" -ne "0" ] && return 1
         done
@@ -396,7 +396,7 @@ open_mount_veracrypt(){
 
             [ "$?" -ne "0" ] && return 1
 
-            mount --mkdir "/dev/mapper/veracrypt$(( 64 - i ))" "/mnt/veracrypt$(( 64 - i ))"
+            mount --mkdir "/dev/mapper/veracrypt$(( 64 - i + 1 ))" "/mnt/veracrypt$(( 64 - i + 1 ))"
 
             [ "$?" -ne "0" ] && return 1
         done
