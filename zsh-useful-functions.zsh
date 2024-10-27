@@ -55,6 +55,8 @@ batch_resize(){
         echo "Example: batch_resize -f . 33%"
         return 1
     fi
+
+    unset f
 }
 
 batch_crop() {
@@ -74,6 +76,7 @@ batch_crop() {
         echo "Example: batch_crop -f . 33x33"
         return 1
     fi
+    unset f
 }
 
 shrink_png_lossy() {
@@ -96,6 +99,8 @@ btrfs_snapper_root_rw(){
 		btrfs subvolume snapshot "$i" "${i}_AUX"
 		btrfs subvolume delete "$i"
 	done
+
+    unset i
 }
 
 # Converts back root snapshots to read-write.
@@ -106,6 +111,8 @@ btrfs_snapper_root_ro(){
 		btrfs subvolume snapshot -r "$i" "${i::-4}"
 		btrfs subvolume delete "$i"
 	done
+
+    unset i
 }
 
 
@@ -277,6 +284,7 @@ check_binary_contents(){
     done <  <(find "$1/$2" -type f -print0)
 
     IFS=$old_ifs
+    unset i
 
     unset file
 }
@@ -351,6 +359,9 @@ iommu_groups(){
             echo -e "\t$(lspci -nns ${d##*/})"
         done;
     done;
+
+    unset g
+    unset d
 }
 
 
@@ -402,6 +413,8 @@ open_mount_veracrypt(){
         done
     fi
 
+    unset i
+
     # Unsets both password and PIM to avoid a leak
     unset password
     unset pim
@@ -414,8 +427,6 @@ open_partitions(){
         echo "Usage: $0 [-k <keyfile-location>] <devices-to-be-decrypted>"
         return 1
     fi
-
-    local -r OPT_STR=":k:"
 
     # man bash -> OPTIND getopts
     local has_keyfile="1" keyfile_loc=""
@@ -451,17 +462,37 @@ open_partitions(){
 
     for i in "${PARTITIONS[@]}"
     do
+        # Note: Cannot put dm_name in another line like shellchec suggests since it will print it on stdout
         local dm_name=$(echo "$i" | cut -d/ -f3)
 
         if [ "$has_keyfile" -eq "0" ];
         then
-            cryptsetup --key-file "$keyfile_loc" open $i $dm_name
+            cryptsetup --key-file "$keyfile_loc" open "$i" "$dm_name"
         else
-            echo "$password" | cryptsetup open $i $dm_name -
+            echo "$password" | cryptsetup open "$i" "$dm_name" -
         fi
 
         [ "$?" -ne "0" ] && return 1
     done
+    unset i
 
     unset password
+}
+
+
+
+close_partitions(){
+    if [ "$#" -eq "0" ];
+    then
+        echo "Usage: $0 part1 part2 ..."
+        return 1
+    fi
+
+    local -r PARTITIONS=( "$@" )
+
+    for i in "${PARTITIONS[@]}"
+    do
+        cryptsetup close "$i"
+    done
+    unset i
 }
