@@ -427,7 +427,11 @@ open_mount_veracrypt(){
 # so /dev/disk/by-uuid/<uuid> maps to /dev/mapper/<uuid>.
 open-partitions(){
     local -a o_keyfile o_fido o_help
-    zparseopts -D -F -- k:=o_keyfile f=o_fido -fido2=o_fido h=o_help -help=o_help 2>/dev/null
+    # -E keeps parsing tolerant of flags that appear after a device (so a stray
+    # "-k"/"-f" is never silently swallowed as a device path); -F rejects
+    # unknown flags. Together they keep the -k/-f conflict check reachable
+    # regardless of argument order.
+    zparseopts -D -E -F -- k:=o_keyfile f=o_fido -fido2=o_fido h=o_help -help=o_help 2>/dev/null
     local -r parse_rc=$?
 
     if [ "$parse_rc" -ne "0" ];

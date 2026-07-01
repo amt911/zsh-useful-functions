@@ -18,6 +18,19 @@ load test_helper
     [[ "$output" == *"mutually exclusive"* ]]
 }
 
+@test "flag after a device is still parsed (interleaved), not swallowed" {
+    run_op /dev/disk/by-uuid/UUID -k /root/key
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"CS:--key-file /root/key open /dev/disk/by-uuid/UUID UUID"* ]]
+    [[ "$output" != *"open -k"* ]]
+}
+
+@test "-k and -f conflict is caught even when a device comes first" {
+    run_op /dev/sda1 -k /root/key -f /dev/sdb1
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"mutually exclusive"* ]]
+}
+
 @test "unknown flag returns 1" {
     run_op -x /dev/sda1
     [ "$status" -eq 1 ]
