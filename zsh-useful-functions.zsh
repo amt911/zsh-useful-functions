@@ -421,62 +421,82 @@ open_mount_veracrypt(){
 }
 
 
-open_partitions(){
-    if [ "$#" -eq "0" ];
+# Opens (unlocks) one or more LUKS/dm-crypt devices.
+# Modes: password (default), keyfile (-k <file>), FIDO2 (-f / --fido2).
+# The mapper name is the last path component of each device (${dev:t}),
+# so /dev/disk/by-uuid/<uuid> maps to /dev/mapper/<uuid>.
+open-partitions(){
+    local -a o_keyfile o_fido o_help
+    zparseopts -D -F -- k:=o_keyfile f=o_fido -fido2=o_fido h=o_help -help=o_help 2>/dev/null
+    local -r parse_rc=$?
+
+    if [ "$parse_rc" -ne "0" ];
     then
-        echo "Usage: $0 [-k <keyfile-location>] <devices-to-be-decrypted>"
+        echo "Error: invalid option" >&2
         return 1
     fi
 
-    # man bash -> OPTIND getopts
-    local has_keyfile="1" keyfile_loc=""
+    if [ -n "$o_help" ] || [ "$#" -eq "0" ];
+    then
+        echo "Usage: open-partitions [-k <keyfile> | -f | --fido2] <device>..."
+        echo "  (no flag)      password mode  — prompt once, unlock every device"
+        echo "  -k <keyfile>   keyfile mode   — cryptsetup --key-file <keyfile>"
+        echo "  -f, --fido2    FIDO2 mode     — systemd-cryptsetup attach ... fido2-device=auto"
+        echo "  -h, --help     show this help"
+        [ -n "$o_help" ] && return 0
+        return 1
+    fi
 
-    while getopts ":k:" arg; 
-    do
-        case $arg in
-            "k")
-                has_keyfile="0"
-                keyfile_loc="$OPTARG"
-                ;;
-                
-            "?")
-                echo "Invalid option"
-                return 1
-                ;;
-            *)
-                echo "Unknown error"
-                return 2
-                ;;
-        esac
-    done
+    if [ -n "$o_keyfile" ] && [ -n "$o_fido" ];
+    then
+        echo "Error: -k and -f/--fido2 are mutually exclusive" >&2
+        return 1
+    fi
 
-    shift $(( OPTIND - 1 ))
+    local -r keyfile_loc="${o_keyfile[2]}"
 
-    local -r PARTITIONS=( "$@" )
-
-    if [ "$has_keyfile" -eq "1" ];
+    local password=""
+    if [ -z "$o_keyfile" ] && [ -z "$o_fido" ];
     then
         echo -n "Password: "
         read -rs password
+        echo
     fi
 
-    for i in "${PARTITIONS[@]}"
+    local i dm_name
+    for i in "$@"
     do
-        # Note: Cannot put dm_name in another line like shellchec suggests since it will print it on stdout
-        local dm_name=$(echo "$i" | cut -d/ -f3)
+        # Mapper name = last path component; robust for /dev/disk/by-uuid/... paths.
+        dm_name="${i:t}"
 
-        if [ "$has_keyfile" -eq "0" ];
+        if [ -n "$o_fido" ];
+        then
+            systemd-cryptsetup attach "$dm_name" "$i" - fido2-device=auto
+        elif [ -n "$o_keyfile" ];
         then
             cryptsetup --key-file "$keyfile_loc" open "$i" "$dm_name"
         else
-            echo "$password" | cryptsetup open "$i" "$dm_name" -
+            # print -rn (no trailing newline, no escapes) — feeding with echo
+            # appends "\n" and cryptsetup rejects it as "No key available".
+            print -rn -- "$password" | cryptsetup open "$i" "$dm_name" -
         fi
 
-        [ "$?" -ne "0" ] && return 1
+        if [ "$?" -ne "0" ];
+        then
+            unset i dm_name password
+            return 1
+        fi
     done
-    unset i
+    unset i dm_name
 
+    # Unsets password to avoid a leak
     unset password
+}
+
+
+# Back-compat wrapper for the previous underscore name.
+open_partitions(){
+    open-partitions "$@"
 }
 
 
