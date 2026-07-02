@@ -508,17 +508,39 @@ open_mount_veracrypt(){
 }
 
 
+# Unlock a single device according to the mode flags of the calling
+# open-partitions invocation. zsh locals are dynamically scoped, so this sees
+# the caller's o_fido/o_keyfile/o_vera/keyfile_loc/password/pim. Returns the
+# unlock command's exit code.
+_open_partitions_unlock() {
+    local dev="$1" dm="${1:t}"
+
+    if [ -n "$o_fido" ];
+    then
+        systemd-cryptsetup attach "$dm" "$dev" - fido2-device=auto
+    elif [ -n "$o_keyfile" ];
+    then
+        cryptsetup --key-file "$keyfile_loc" open "$dev" "$dm"
+    elif [ -n "$o_vera" ];
+    then
+        print -rn -- "$password" | cryptsetup --type tcrypt --veracrypt-pim "$pim" open "$dev" "$dm" -
+    else
+        print -rn -- "$password" | cryptsetup open "$dev" "$dm" -
+    fi
+}
+
+
 # Opens (unlocks) one or more LUKS/dm-crypt devices.
-# Modes: password (default), keyfile (-k <file>), FIDO2 (-f / --fido2).
+# Modes: password (default), keyfile (-k <file>), FIDO2 (-f / --fido2), veracrypt/tcrypt (-v / --veracrypt).
 # The mapper name is the last path component of each device (${dev:t}),
 # so /dev/disk/by-uuid/<uuid> maps to /dev/mapper/<uuid>.
 open-partitions(){
-    local -a o_keyfile o_fido o_help
+    local -a o_keyfile o_fido o_vera o_help
     # -E keeps parsing tolerant of flags that appear after a device (so a stray
     # "-k"/"-f" is never silently swallowed as a device path); -F rejects
     # unknown flags. Together they keep the -k/-f conflict check reachable
     # regardless of argument order.
-    zparseopts -D -E -F -- k:=o_keyfile f=o_fido -fido2=o_fido h=o_help -help=o_help 2>/dev/null
+    zparseopts -D -E -F -- k:=o_keyfile f=o_fido -fido2=o_fido v=o_vera -veracrypt=o_vera h=o_help -help=o_help 2>/dev/null
     local -r parse_rc=$?
 
     if [ "$parse_rc" -ne "0" ];
@@ -529,59 +551,57 @@ open-partitions(){
 
     if [ -n "$o_help" ] || [ "$#" -eq "0" ];
     then
-        echo "Usage: open-partitions [-k <keyfile> | -f | --fido2] <device>..."
+        echo "Usage: open-partitions [-k <keyfile> | -f | --fido2 | -v | --veracrypt] [-p] <device>..."
         echo "  (no flag)      password mode  — prompt once, unlock every device"
         echo "  -k <keyfile>   keyfile mode   — cryptsetup --key-file <keyfile>"
         echo "  -f, --fido2    FIDO2 mode     — systemd-cryptsetup attach ... fido2-device=auto"
+        echo "  -v, --veracrypt veracrypt/tcrypt — prompt password+PIM once, cryptsetup --type tcrypt"
+        echo "  -p, --parallel unlock devices concurrently (ignored for FIDO2)"
         echo "  -h, --help     show this help"
         [ -n "$o_help" ] && return 0
         return 1
     fi
 
-    if [ -n "$o_keyfile" ] && [ -n "$o_fido" ];
+    local -i mode_count=0
+    [ -n "$o_keyfile" ] && (( mode_count++ ))
+    [ -n "$o_fido" ] && (( mode_count++ ))
+    [ -n "$o_vera" ] && (( mode_count++ ))
+    if [ "$mode_count" -gt "1" ];
     then
-        echo "Error: -k and -f/--fido2 are mutually exclusive" >&2
+        echo "Error: -k, -f/--fido2 and -v/--veracrypt are mutually exclusive" >&2
         return 1
     fi
 
     local -r keyfile_loc="${o_keyfile[2]}"
 
-    local password=""
+    local password="" pim=""
     if [ -z "$o_keyfile" ] && [ -z "$o_fido" ];
     then
         echo -n "Password: "
         read -rs password
         echo
+        if [ -n "$o_vera" ];
+        then
+            echo -n "PIM: "
+            read -rs pim
+            echo
+        fi
     fi
 
-    local i dm_name
+    local i rc=0
     for i in "$@"
     do
-        # Mapper name = last path component; robust for /dev/disk/by-uuid/... paths.
-        dm_name="${i:t}"
-
-        if [ -n "$o_fido" ];
+        if ! _open_partitions_unlock "$i";
         then
-            systemd-cryptsetup attach "$dm_name" "$i" - fido2-device=auto
-        elif [ -n "$o_keyfile" ];
-        then
-            cryptsetup --key-file "$keyfile_loc" open "$i" "$dm_name"
-        else
-            # print -rn (no trailing newline, no escapes) — feeding with echo
-            # appends "\n" and cryptsetup rejects it as "No key available".
-            print -rn -- "$password" | cryptsetup open "$i" "$dm_name" -
-        fi
-
-        if [ "$?" -ne "0" ];
-        then
-            unset i dm_name password
-            return 1
+            rc=1
+            break
         fi
     done
-    unset i dm_name
+    unset i
 
-    # Unsets password to avoid a leak
-    unset password
+    # Unsets secrets to avoid a leak
+    unset password pim
+    return $rc
 }
 
 

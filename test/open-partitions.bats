@@ -84,3 +84,25 @@ load test_helper
     [ "$status" -eq 0 ]
     [[ "$output" == *"CS:--type tcrypt --veracrypt-pim 1234 open /dev/sda1 veracrypt1 -"* ]]
 }
+
+@test "veracrypt mode builds tcrypt unlock with basename mapper" {
+    run zsh -c '
+        cryptsetup(){ print "CS:$*"; return 0; }
+        source "$1"
+        open-partitions -v /dev/nvme1n1p4 <<< $'"'"'pw\n1234'"'"'
+    ' _ "$PLUGIN_FILE"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"CS:--type tcrypt --veracrypt-pim 1234 open /dev/nvme1n1p4 nvme1n1p4 -"* ]]
+}
+
+@test "-v conflicts with -k" {
+    run_op -v -k /root/key /dev/sda1
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"mutually exclusive"* ]]
+}
+
+@test "-v conflicts with -f" {
+    run_op -v -f /dev/sda1
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"mutually exclusive"* ]]
+}
