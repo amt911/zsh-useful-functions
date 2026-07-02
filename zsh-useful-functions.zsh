@@ -451,6 +451,45 @@ iommu_groups(){
     unset g d
 }
 
+# List partitions whose size is within [min, max] (inclusive).
+# Sizes accept IEC suffixes (K/M/G/T, base 1024) or raw bytes.
+partitions_by_size(){
+    if [ "$#" -ne 2 ];
+    then
+        echo "Usage: partitions_by_size <min-size> <max-size>"
+        echo "  Sizes accept IEC suffixes: K M G T (e.g. 500M, 1G, 2T), or raw bytes."
+        echo "  Prints NAME<TAB>SIZE for partitions with min <= size <= max."
+        echo "Example: partitions_by_size 1G 2G"
+        return 1
+    fi
+
+    local min max
+    min=$(numfmt --from=iec "$1" 2>/dev/null)
+    max=$(numfmt --from=iec "$2" 2>/dev/null)
+
+    if [ -z "$min" ] || [ -z "$max" ];
+    then
+        echo "Error: invalid size (use IEC suffixes like 500M, 1G, 2T, or bytes)" >&2
+        return 1
+    fi
+
+    if [ "$min" -gt "$max" ];
+    then
+        echo "Error: min-size must be <= max-size" >&2
+        return 1
+    fi
+
+    local name size type
+    while read -r name size type;
+    do
+        if [ "$type" = "part" ] && [ "$size" -ge "$min" ] && [ "$size" -le "$max" ];
+        then
+            printf '%s\t%s\n' "$name" "$size"
+        fi
+    done < <(lsblk -b -l -n -o NAME,SIZE,TYPE)
+    unset name size type
+}
+
 
 open_mount_veracrypt(){
 
