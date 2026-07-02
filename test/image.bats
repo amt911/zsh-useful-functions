@@ -31,3 +31,28 @@ load test_helper
     [ "$status" -eq 1 ]
     [[ "$output" == *"invalid option"* ]]
 }
+
+@test "batch_resize writes to resized/<basename> and creates the dir" {
+    cd "$BATS_TEST_TMPDIR"
+    touch a.png
+    run_plugin batch_resize . 50%
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"-resize 50%"* ]]
+    [[ "$output" == *"resized/a.png"* ]]
+    [ -d resized ]
+}
+
+@test "batch_resize -f resizes in place" {
+    cd "$BATS_TEST_TMPDIR"
+    touch a.png
+    run_plugin batch_resize -f . 33%
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"IM:./a.png -resize 33% -filter Point ./a.png"* ]]
+    [ ! -d resized ]
+}
+
+@test "batch_resize wrong arg count prints usage" {
+    run_plugin batch_resize .
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"Usage: batch_resize"* ]]
+}

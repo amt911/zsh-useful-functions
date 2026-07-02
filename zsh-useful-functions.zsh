@@ -67,23 +67,41 @@ convert_png_to_jpg() {
 }
 
 batch_resize(){
-    if [ "$#" -eq 2 ]; then
-        [ ! -d "resized" ] && mkdir resized
-        
-        for f in "$1"/*.png; do
-            convert "$f" -resize "$2" -filter Point "resized/$f"
-        done
-    elif [ "$#" -eq 3 ]; then
-        for f in "$2"/*.png; do
-            convert "$f" -resize "$3" -filter Point "$f"
-        done
-    else
-        echo "Usage: batch_resize [-f] <directory> <percentage>"
-        echo "Example: batch_resize . 20%"
-        echo "Example: batch_resize -f . 33%"
+    local -a o_inplace o_help
+    zparseopts -D -E -F -- f=o_inplace h=o_help -help=o_help 2>/dev/null
+    local -r parse_rc=$?
+
+    if [ "$parse_rc" -ne "0" ];
+    then
+        echo "Error: invalid option" >&2
         return 1
     fi
 
+    if [ -n "$o_help" ] || [ "$#" -ne "2" ];
+    then
+        echo "Usage: batch_resize [-f] <directory> <percentage>"
+        echo "  -f    resize in place (overwrite originals); else write to resized/"
+        echo "Example: batch_resize . 20%"
+        echo "Example: batch_resize -f . 33%"
+        [ -n "$o_help" ] && return 0
+        return 1
+    fi
+
+    local im=convert
+    (( $+commands[magick] )) && im=magick
+
+    local -r dir="$1" pct="$2"
+    [ -z "$o_inplace" ] && mkdir -p resized
+
+    local f
+    for f in "$dir"/*.png(N); do
+        if [ -n "$o_inplace" ];
+        then
+            "$im" "$f" -resize "$pct" -filter Point "$f"
+        else
+            "$im" "$f" -resize "$pct" -filter Point "resized/${f:t}"
+        fi
+    done
     unset f
 }
 
