@@ -121,3 +121,66 @@ _mkdir_ok='mkdir(){ return 0; }'
     [ "$status" -eq 0 ]
     [[ "$output" == *"NTFS3G:-o ro /dev/sda1 /mnt/sda1"* ]]
 }
+
+# rsync stub echoing its args; a failing variant for the abort test.
+_rsync_ok='rsync(){ print "RS:$*"; return 0; }'
+_rsync_fail='rsync(){ print "RS:$*"; return 1; }'
+
+@test "rsync_fanout no args prints usage" {
+    run zsh -c 'source "$1"; rsync_fanout' _ "$PLUGIN_FILE"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"Usage: rsync_fanout"* ]]
+}
+
+@test "rsync_fanout source but no dest prints usage" {
+    run zsh -c 'source "$1"; rsync_fanout /mnt/src/' _ "$PLUGIN_FILE"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"Usage: rsync_fanout"* ]]
+}
+
+@test "rsync_fanout -h prints usage and returns 0" {
+    run zsh -c 'source "$1"; rsync_fanout -h' _ "$PLUGIN_FILE"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Usage: rsync_fanout"* ]]
+}
+
+@test "rsync_fanout default uses -avc and built-in excludes, no delete/dry-run" {
+    run zsh -c "$_rsync_ok"'; source "$1"; rsync_fanout /mnt/src/ /mnt/dst1' _ "$PLUGIN_FILE"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"RS:-avc "* ]]
+    [[ "$output" == *"--exclude System Volume Information"* ]]
+    [[ "$output" == *'--exclude $RECYCLE.BIN'* ]]
+    [[ "$output" == *"--exclude Versiones anteriores"* ]]
+    [[ "$output" == *"--exclude .Trash-1000"* ]]
+    [[ "$output" == *"/mnt/src/ /mnt/dst1"* ]]
+    [[ "$output" != *"--delete"* ]]
+    [[ "$output" != *"--dry-run"* ]]
+}
+
+@test "rsync_fanout -D adds --delete and -n adds --dry-run" {
+    run zsh -c "$_rsync_ok"'; source "$1"; rsync_fanout -D -n /mnt/src/ /mnt/dst1' _ "$PLUGIN_FILE"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"--delete"* ]]
+    [[ "$output" == *"--dry-run"* ]]
+}
+
+@test "rsync_fanout appends extra -x excludes after the built-ins" {
+    run zsh -c "$_rsync_ok"'; source "$1"; rsync_fanout -x foo -x bar /mnt/src/ /mnt/dst1' _ "$PLUGIN_FILE"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"--exclude foo"* ]]
+    [[ "$output" == *"--exclude bar"* ]]
+}
+
+@test "rsync_fanout runs once per destination" {
+    run zsh -c "$_rsync_ok"'; source "$1"; rsync_fanout /mnt/src/ /mnt/dst1 /mnt/dst2' _ "$PLUGIN_FILE"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"/mnt/src/ /mnt/dst1"* ]]
+    [[ "$output" == *"/mnt/src/ /mnt/dst2"* ]]
+}
+
+@test "rsync_fanout aborts on first rsync failure" {
+    run zsh -c "$_rsync_fail"'; source "$1"; rsync_fanout /mnt/src/ /mnt/dst1 /mnt/dst2' _ "$PLUGIN_FILE"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"rsync to /mnt/dst1 failed"* ]]
+    [[ "$output" != *"/mnt/src/ /mnt/dst2"* ]]
+}

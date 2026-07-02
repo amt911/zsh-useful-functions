@@ -577,6 +577,72 @@ mount_partitions(){
     unset i
 }
 
+# Rsync one source to many destinations with a fixed set of excludes.
+# Always uses -avc. --delete and --dry-run are opt-in. Aborts on first failure.
+rsync_fanout(){
+    local -a o_dry o_delete o_exclude o_help
+    zparseopts -D -E -F -- n=o_dry -dry-run=o_dry D=o_delete -delete=o_delete x+:=o_exclude -exclude+:=o_exclude h=o_help -help=o_help 2>/dev/null
+    local -r parse_rc=$?
+
+    if [ "$parse_rc" -ne "0" ];
+    then
+        echo "Error: invalid option" >&2
+        return 1
+    fi
+
+    if [ -n "$o_help" ] || [ "$#" -lt "2" ];
+    then
+        echo "Usage: rsync_fanout [-n] [-D] [-x <pattern>]... <source> <dest>..."
+        echo "  Rsync <source> to every <dest> with -avc and a fixed set of excludes."
+        echo "  -n, --dry-run   pass --dry-run to rsync (no changes made)"
+        echo "  -D, --delete    pass --delete to rsync (destructive; off by default)"
+        echo "  -x, --exclude   extra --exclude pattern (repeatable)"
+        echo "  -h, --help      show this help"
+        echo "  Built-in excludes: 'System Volume Information', '\$RECYCLE.BIN',"
+        echo "                     'Versiones anteriores', '.Trash-1000'"
+        echo "Example: rsync_fanout -D /mnt/nvme1n1p4/ /mnt/veracrypt1 /mnt/veracrypt2"
+        [ -n "$o_help" ] && return 0
+        return 1
+    fi
+
+    local -r source="$1"
+    shift
+
+    local -a rsync_flags
+    rsync_flags=( -avc )
+    [ -n "$o_dry" ] && rsync_flags+=( --dry-run )
+    [ -n "$o_delete" ] && rsync_flags+=( --delete )
+
+    local -a excludes
+    excludes=(
+        --exclude 'System Volume Information'
+        --exclude '$RECYCLE.BIN'
+        --exclude 'Versiones anteriores'
+        --exclude '.Trash-1000'
+    )
+
+    # Append any extra -x/--exclude patterns, dropping captured flag tokens.
+    local tok
+    for tok in "${o_exclude[@]}"
+    do
+        [ "$tok" = "-x" ] || [ "$tok" = "--exclude" ] && continue
+        excludes+=( --exclude "$tok" )
+    done
+    unset tok
+
+    local d
+    for d in "$@"
+    do
+        if ! rsync "${rsync_flags[@]}" "${excludes[@]}" "$source" "$d";
+        then
+            echo "Error: rsync to $d failed" >&2
+            unset d
+            return 1
+        fi
+    done
+    unset d
+}
+
 
 open_mount_veracrypt(){
 
