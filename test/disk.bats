@@ -102,6 +102,21 @@ _lsblk_ntfs='lsblk(){ print "ntfs"; }'
     [[ "$output" != *"Usage: mount_partitions"* ]]
 }
 
+@test "mount_partitions mounts read-only devices before writable ones" {
+    run zsh -c "$_mount_ok"' ; '"$_lsblk_ext4"'; source "$1"; mount_partitions -r /dev/nvme1n1p4 /dev/mapper/veracrypt1' _ "$PLUGIN_FILE"
+    [ "$status" -eq 0 ]
+    ro_line=$(printf '%s\n' "$output" | grep -n 'MNT:-o ro --mkdir /dev/nvme1n1p4' | cut -d: -f1)
+    w_line=$(printf '%s\n' "$output" | grep -n 'MNT:--mkdir /dev/mapper/veracrypt1' | cut -d: -f1)
+    [ -n "$ro_line" ] && [ -n "$w_line" ]
+    [ "$ro_line" -lt "$w_line" ]
+}
+
+@test "mount_partitions long-form --read-only mounts read-only" {
+    run zsh -c "$_mount_ok"' ; '"$_lsblk_ext4"'; source "$1"; mount_partitions --read-only /dev/sda1' _ "$PLUGIN_FILE"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"MNT:-o ro --mkdir /dev/sda1 /mnt/sda1"* ]]
+}
+
 # ntfs-3g stub echoing its args.
 _ntfs_ok='ntfs-3g(){ print "NTFS3G:$*"; return 0; }'
 # mkdir stub: the ntfs-3g branch calls a real `mkdir -p` (ntfs-3g has no
