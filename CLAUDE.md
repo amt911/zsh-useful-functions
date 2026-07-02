@@ -54,8 +54,9 @@ Confirm the switch briefly when it happens.
 - **zsh** — target shell; functions use zsh-specific syntax (`${var:l}`, `**` globs, `local -r`).
 - **Bash-compatible core utils** — `getopts`, `read`, `printf`/`echo -e` used throughout;
   some functions are written with POSIX-ish `[ ]` tests even though the shebang is `#!/bin/zsh`.
-- **External CLI dependencies (assumed installed, not vendored)**: `imagemagick` (`convert`),
-  `pngquant`, `cryptsetup`, `lspci`, `btrfs-progs`, coreutils (`dd`, `od`, `cmp`, `du`).
+- **External CLI dependencies (assumed installed, not vendored)**: `imagemagick`
+  (`magick`, falling back to `convert` on ImageMagick 6), `pngquant`, `cryptsetup`,
+  `systemd-cryptsetup`, `lspci`, `btrfs-progs`, coreutils (`dd`, `od`, `cmp`, `du`).
 - No package manager, no build step — this is a single sourced `.zsh` file.
 
 ## Commands
@@ -64,27 +65,34 @@ Confirm the switch briefly when it happens.
 # "install" — no build; just source it or add as a plugin entry
 source zsh-useful-functions.zsh
 
+# test (bats-core is vendored as a git submodule under test/bats)
+git submodule update --init test/bats   # first checkout only
+./test/bats/bin/bats test/               # run the whole suite
+
 # lint
 shellcheck --shell=bash zsh-useful-functions.zsh   # shellcheck has no zsh dialect; bash is closest
 ```
 
-There is no `test`, `build`, or `dev` command — none exist yet (see below).
+There is no `build` or `dev` command — none exist. The `test` command above is real; `bats` is not on `PATH`, so invoke it via `./test/bats/bin/bats`.
 
 ## Tests and quality
 
-**Not implemented yet.** There is currently no test suite, no CI, and no coverage gate for
-this repo — every function is verified manually by the author. The rules below describe
-the target workflow to move toward; treat them as the bar for *new* work, not a claim about
-the current state.
+**A bats-core suite is now set up** under `test/` (`test/*.bats`, run with
+`./test/bats/bin/bats test/`). It covers argument parsing, usage errors, and the
+string/path logic of most functions; interactive/hardware cores are exercised only on
+their arg-parsing/usage paths (see TDD exceptions below). Coverage is not yet gated.
 
-- **Test runner (proposed, not set up)**: [bats-core](https://github.com/bats-core/bats-core)
-  — the standard for testing bash/zsh functions; specs would live in `test/*.bats`, one file
-  per function or logical group (e.g. `test/veracrypt.bats` for `open_mount_veracrypt`).
-- **Lint**: `shellcheck` is installed on the dev machine but not wired into a script or CI —
-  run it manually against changed functions before committing.
+- **Test runner**: [bats-core](https://github.com/bats-core/bats-core), vendored as a
+  submodule at `test/bats`. Specs live in `test/*.bats`, grouped by area
+  (`open-partitions.bats`, `image.bats`, `misc.bats`, `smoke.bats`); shared stubs and the
+  `run_op`/`run_plugin` helpers live in `test/test_helper.bash`.
+- **Lint**: `shellcheck --shell=bash` is run manually against changed functions before
+  committing. It has no zsh dialect, so zsh-only constructs (glob qualifiers like `(N)`,
+  `zparseopts`, `$+commands`, `print -rn`) produce parse-error false positives — don't
+  "fix" those into bash.
 - **Coverage gate: 80%** (aspirational — no coverage tool exists for zsh function suites
-  today; would need to be approximated via bats' `--formatter` output or dropped in favor of
-  "every new/changed function has at least one happy-path and one usage-error test").
+  today). The working bar: every new/changed function has at least one happy-path and one
+  usage-error test.
 
 ### TDD — required for new logic
 
