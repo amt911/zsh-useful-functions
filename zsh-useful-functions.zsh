@@ -374,16 +374,16 @@ check_binary_contents_cmp(){
 }
 
 iommu_groups(){
-    # shopt -s nullglob
-    for g in $(find /sys/kernel/iommu_groups/* -maxdepth 0 -type d | sort -V); do
-        echo "IOMMU Group ${g##*/}:"
-        for d in $g/devices/*; do
-            echo -e "\t$(lspci -nns ${d##*/})"
-        done;
-    done;
+    local g d
+    # (/nN): directories only, numeric sort, nullglob — robust, no word-splitting.
+    for g in /sys/kernel/iommu_groups/*(/nN); do
+        echo "IOMMU Group ${g:t}:"
+        for d in "$g"/devices/*(N); do
+            echo -e "\t$(lspci -nns "${d:t}")"
+        done
+    done
 
-    unset g
-    unset d
+    unset g d
 }
 
 

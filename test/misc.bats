@@ -75,3 +75,11 @@ load test_helper
     [ "$status" -eq 1 ]
     [[ "$output" == *"Usage: check_hashes"* ]]
 }
+
+@test "iommu_groups runs without word-split errors" {
+    if [ ! -d /sys/kernel/iommu_groups ]; then
+        skip "no /sys/kernel/iommu_groups on this machine"
+    fi
+    run zsh -c 'source "$1"; iommu_groups' _ "$PLUGIN_FILE"
+    [ "$status" -eq 0 ]
+}
