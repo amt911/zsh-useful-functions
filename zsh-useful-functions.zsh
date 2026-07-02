@@ -490,6 +490,42 @@ partitions_by_size(){
     unset name size type
 }
 
+# Mount a single device at <base>/<device-basename>. NTFS devices (per
+# `lsblk -no FSTYPE`) use the ntfs-3g driver (mountpoint created first, since
+# ntfs-3g has no --mkdir); others use native `mount --mkdir`. ro=1 adds -o ro.
+# Prints an error and returns the driver's exit code on failure.
+_mount_partitions_one() {
+    local -r ro="$1" dev="$2" base="$3"
+    local -r target="$base/${dev:t}"
+    local fstype
+    fstype="$(lsblk -no FSTYPE "$dev" 2>/dev/null)"
+
+    local rc
+    if [ "$fstype" = "ntfs" ];
+    then
+        if [ "$ro" = "1" ];
+        then
+            mkdir -p "$target" && ntfs-3g -o ro "$dev" "$target"
+        else
+            mkdir -p "$target" && ntfs-3g "$dev" "$target"
+        fi
+    else
+        if [ "$ro" = "1" ];
+        then
+            mount -o ro --mkdir "$dev" "$target"
+        else
+            mount --mkdir "$dev" "$target"
+        fi
+    fi
+    rc=$?
+
+    if [ "$rc" -ne "0" ];
+    then
+        echo "Error: failed to mount $dev at $target" >&2
+    fi
+    return "$rc"
+}
+
 # Mount one or more devices under a base directory (default /mnt), creating a
 # subdirectory named after each device's basename.
 mount_partitions(){
@@ -529,28 +565,16 @@ mount_partitions(){
     done
     unset tok
 
-    local i target
+    local i
     for i in "${ro_devs[@]}"
     do
-        target="$base/${i:t}"
-        if ! mount -o ro --mkdir "$i" "$target";
-        then
-            echo "Error: failed to mount $i at $target" >&2
-            unset i target
-            return 1
-        fi
+        _mount_partitions_one 1 "$i" "$base" || { unset i; return 1; }
     done
     for i in "$@"
     do
-        target="$base/${i:t}"
-        if ! mount --mkdir "$i" "$target";
-        then
-            echo "Error: failed to mount $i at $target" >&2
-            unset i target
-            return 1
-        fi
+        _mount_partitions_one 0 "$i" "$base" || { unset i; return 1; }
     done
-    unset i target
+    unset i
 }
 
 

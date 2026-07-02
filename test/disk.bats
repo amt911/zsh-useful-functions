@@ -41,6 +41,11 @@ _lsblk_stub='lsblk(){ printf "%s\n" \
 _mount_ok='mount(){ print "MNT:$*"; return 0; }'
 _mount_fail='mount(){ print "MNT:$*"; return 1; }'
 
+# lsblk FSTYPE stub: report a non-NTFS filesystem for any device.
+_lsblk_ext4='lsblk(){ print "ext4"; }'
+# lsblk FSTYPE stub: report NTFS for any device.
+_lsblk_ntfs='lsblk(){ print "ntfs"; }'
+
 @test "mount_partitions no args prints usage" {
     run zsh -c 'source "$1"; mount_partitions' _ "$PLUGIN_FILE"
     [ "$status" -eq 1 ]
@@ -54,20 +59,20 @@ _mount_fail='mount(){ print "MNT:$*"; return 1; }'
 }
 
 @test "mount_partitions defaults base to /mnt and derives folder from basename" {
-    run zsh -c "$_mount_ok"'; source "$1"; mount_partitions /dev/mapper/veracrypt1' _ "$PLUGIN_FILE"
+    run zsh -c "$_mount_ok"' ; '"$_lsblk_ext4"'; source "$1"; mount_partitions /dev/mapper/veracrypt1' _ "$PLUGIN_FILE"
     [ "$status" -eq 0 ]
     [[ "$output" == *"MNT:--mkdir /dev/mapper/veracrypt1 /mnt/veracrypt1"* ]]
 }
 
 @test "mount_partitions honors -b base and mounts multiple devices" {
-    run zsh -c "$_mount_ok"'; source "$1"; mount_partitions -b /media /dev/sda1 /dev/sdb2' _ "$PLUGIN_FILE"
+    run zsh -c "$_mount_ok"' ; '"$_lsblk_ext4"'; source "$1"; mount_partitions -b /media /dev/sda1 /dev/sdb2' _ "$PLUGIN_FILE"
     [ "$status" -eq 0 ]
     [[ "$output" == *"MNT:--mkdir /dev/sda1 /media/sda1"* ]]
     [[ "$output" == *"MNT:--mkdir /dev/sdb2 /media/sdb2"* ]]
 }
 
 @test "mount_partitions reports a mount failure and returns non-zero" {
-    run zsh -c "$_mount_fail"'; source "$1"; mount_partitions /dev/sda1' _ "$PLUGIN_FILE"
+    run zsh -c "$_mount_fail"' ; '"$_lsblk_ext4"'; source "$1"; mount_partitions /dev/sda1' _ "$PLUGIN_FILE"
     [ "$status" -eq 1 ]
     [[ "$output" == *"failed to mount /dev/sda1 at /mnt/sda1"* ]]
 }
@@ -79,20 +84,40 @@ _mount_fail='mount(){ print "MNT:$*"; return 1; }'
 }
 
 @test "mount_partitions -r mounts a device read-only" {
-    run zsh -c "$_mount_ok"'; source "$1"; mount_partitions -r /dev/sda1' _ "$PLUGIN_FILE"
+    run zsh -c "$_mount_ok"' ; '"$_lsblk_ext4"'; source "$1"; mount_partitions -r /dev/sda1' _ "$PLUGIN_FILE"
     [ "$status" -eq 0 ]
     [[ "$output" == *"MNT:-o ro --mkdir /dev/sda1 /mnt/sda1"* ]]
 }
 
 @test "mount_partitions mixes read-only and writable devices in one call" {
-    run zsh -c "$_mount_ok"'; source "$1"; mount_partitions -r /dev/nvme1n1p4 /dev/mapper/veracrypt1' _ "$PLUGIN_FILE"
+    run zsh -c "$_mount_ok"' ; '"$_lsblk_ext4"'; source "$1"; mount_partitions -r /dev/nvme1n1p4 /dev/mapper/veracrypt1' _ "$PLUGIN_FILE"
     [ "$status" -eq 0 ]
     [[ "$output" == *"MNT:-o ro --mkdir /dev/nvme1n1p4 /mnt/nvme1n1p4"* ]]
     [[ "$output" == *"MNT:--mkdir /dev/mapper/veracrypt1 /mnt/veracrypt1"* ]]
 }
 
 @test "mount_partitions with only -r (no positional) still mounts, no usage" {
-    run zsh -c "$_mount_ok"'; source "$1"; mount_partitions -r /dev/sda1' _ "$PLUGIN_FILE"
+    run zsh -c "$_mount_ok"' ; '"$_lsblk_ext4"'; source "$1"; mount_partitions -r /dev/sda1' _ "$PLUGIN_FILE"
     [ "$status" -eq 0 ]
     [[ "$output" != *"Usage: mount_partitions"* ]]
+}
+
+# ntfs-3g stub echoing its args.
+_ntfs_ok='ntfs-3g(){ print "NTFS3G:$*"; return 0; }'
+# mkdir stub: the ntfs-3g branch calls a real `mkdir -p` (ntfs-3g has no
+# --mkdir); stub it so the test doesn't depend on write access to the real
+# default base (/mnt, typically root-owned) — mirrors why `mount` is stubbed.
+_mkdir_ok='mkdir(){ return 0; }'
+
+@test "mount_partitions uses ntfs-3g for an NTFS device" {
+    run zsh -c "$_mount_ok"' ; '"$_ntfs_ok"' ; '"$_mkdir_ok"' ; '"$_lsblk_ntfs"'; source "$1"; mount_partitions /dev/sda1' _ "$PLUGIN_FILE"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"NTFS3G:/dev/sda1 /mnt/sda1"* ]]
+    [[ "$output" != *"MNT:"* ]]
+}
+
+@test "mount_partitions mounts an NTFS device read-only with -o ro" {
+    run zsh -c "$_mount_ok"' ; '"$_ntfs_ok"' ; '"$_mkdir_ok"' ; '"$_lsblk_ntfs"'; source "$1"; mount_partitions -r /dev/sda1' _ "$PLUGIN_FILE"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"NTFS3G:-o ro /dev/sda1 /mnt/sda1"* ]]
 }
