@@ -527,7 +527,9 @@ _mount_partitions_one() {
 }
 
 # Mount one or more devices under a base directory (default /mnt), creating a
-# subdirectory named after each device's basename.
+# subdirectory named after each device's basename. Devices passed with -r /
+# --read-only are mounted read-only (and first); NTFS devices are auto-detected
+# and mounted via ntfs-3g (see _mount_partitions_one).
 mount_partitions(){
     local -a o_base o_ro o_help
     zparseopts -D -E -F -- b:=o_base -base:=o_base r+:=o_ro -read-only+:=o_ro h=o_help -help=o_help 2>/dev/null
