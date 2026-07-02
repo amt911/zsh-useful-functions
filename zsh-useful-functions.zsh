@@ -7,75 +7,140 @@ else
 fi 
 
 # Personal scripts rewritten to functions, so they can be called directly
-# REWRITE THIS FUNCTION SO IT CAN TAKE AN ARBITRARY AMOUNT OF SWITCHES
+# Convert PNG files to JPG.
 convert_png_to_jpg() {
-    if [ "$#" -eq 0 ]; then
-        echo "Usage: convert_png_to_jpg [-r] <quality-number> <path>"
-        echo "Example: convert_png_to_jpg ."
-        echo "Example: convert_png_to_jpg -r ."
-        echo "Example: convert_png_to_jpg -r 33 ."
+    local -a o_recursive o_help
+    zparseopts -D -E -F -- r=o_recursive h=o_help -help=o_help 2>/dev/null
+    local -r parse_rc=$?
+
+    if [ "$parse_rc" -ne "0" ];
+    then
+        echo "Error: invalid option" >&2
         return 1
     fi
 
-    local f
-    if [ "$#" -eq 1 ]; then
-        for f in "$1"/*.png; do
-	        jpg_name=${f/%.png/.jpg}
-	        convert "$f" "$jpg_name"
-        done
-
-    elif [ "$#" -eq 2 ]; then
-        for f in "$2"/**/*.png; do
-	        jpg_name=${f/%.png/.jpg}
-	        convert "$f" "$jpg_name"
-        done
-    else
-        for f in "$3"/**/*.png; do
-	        jpg_name=${f/%.png/.jpg}
-	        convert "$f" -quality "$2" "$jpg_name"
-        done
+    if [ -n "$o_help" ] || [ "$#" -eq "0" ];
+    then
+        echo "Usage: convert_png_to_jpg [-r] [<quality>] <path>"
+        echo "  -r          recurse into subdirectories"
+        echo "  <quality>   optional JPEG quality (1-100)"
+        echo "Example: convert_png_to_jpg ."
+        echo "Example: convert_png_to_jpg -r 33 ."
+        [ -n "$o_help" ] && return 0
+        return 1
     fi
-    unset f
+
+    local im=convert
+    (( $+commands[magick] )) && im=magick
+
+    local quality path
+    if [ "$#" -eq "1" ];
+    then
+        path="$1"
+    elif [ "$#" -eq "2" ];
+    then
+        quality="$1"; path="$2"
+    else
+        echo "Error: expected [<quality>] <path>" >&2
+        return 1
+    fi
+
+    local -a pngs
+    if [ -n "$o_recursive" ];
+    then
+        pngs=("$path"/**/*.png(N))
+    else
+        pngs=("$path"/*.png(N))
+    fi
+
+    local f jpg_name
+    for f in "${pngs[@]}"; do
+        jpg_name="${f/%.png/.jpg}"
+        if [ -n "$quality" ];
+        then
+            "$im" "$f" -quality "$quality" "$jpg_name"
+        else
+            "$im" "$f" "$jpg_name"
+        fi
+    done
+    unset f jpg_name
 }
 
 batch_resize(){
-    if [ "$#" -eq 2 ]; then
-        [ ! -d "resized" ] && mkdir resized
-        
-        for f in "$1"/*.png; do
-            convert "$f" -resize "$2" -filter Point "resized/$f"
-        done
-    elif [ "$#" -eq 3 ]; then
-        for f in "$2"/*.png; do
-            convert "$f" -resize "$3" -filter Point "$f"
-        done
-    else
-        echo "Usage: batch_resize [-f] <directory> <percentage>"
-        echo "Example: batch_resize . 20%"
-        echo "Example: batch_resize -f . 33%"
+    local -a o_inplace o_help
+    zparseopts -D -E -F -- f=o_inplace h=o_help -help=o_help 2>/dev/null
+    local -r parse_rc=$?
+
+    if [ "$parse_rc" -ne "0" ];
+    then
+        echo "Error: invalid option" >&2
         return 1
     fi
 
+    if [ -n "$o_help" ] || [ "$#" -ne "2" ];
+    then
+        echo "Usage: batch_resize [-f] <directory> <percentage>"
+        echo "  -f    resize in place (overwrite originals); else write to resized/"
+        echo "Example: batch_resize . 20%"
+        echo "Example: batch_resize -f . 33%"
+        [ -n "$o_help" ] && return 0
+        return 1
+    fi
+
+    local im=convert
+    (( $+commands[magick] )) && im=magick
+
+    local -r dir="$1" pct="$2"
+    [ -z "$o_inplace" ] && mkdir -p resized
+
+    local f
+    for f in "$dir"/*.png(N); do
+        if [ -n "$o_inplace" ];
+        then
+            "$im" "$f" -resize "$pct" -filter Point "$f"
+        else
+            "$im" "$f" -resize "$pct" -filter Point "resized/${f:t}"
+        fi
+    done
     unset f
 }
 
 batch_crop() {
-    if [ "$#" -eq 2 ]; then
-        [ ! -d "cropped" ] && mkdir cropped
-        
-        for f in "$1"/*.png; do
-            convert "$f" -crop "$2" "cropped/$f"
-        done
-    elif [ "$#" -eq 3 ]; then
-        for f in "$2"/*.png; do
-            convert "$f" -crop "$3" "$f"
-        done
-    else
-        echo "Usage: batch_crop [-f] <directory> {x}x{y}{+/-}{x}{+/-}{y}"
-        echo "Example: batch_crop . 12x13+1+2"
-        echo "Example: batch_crop -f . 33x33"
+    local -a o_inplace o_help
+    zparseopts -D -E -F -- f=o_inplace h=o_help -help=o_help 2>/dev/null
+    local -r parse_rc=$?
+
+    if [ "$parse_rc" -ne "0" ];
+    then
+        echo "Error: invalid option" >&2
         return 1
     fi
+
+    if [ -n "$o_help" ] || [ "$#" -ne "2" ];
+    then
+        echo "Usage: batch_crop [-f] <directory> {x}x{y}{+/-}{x}{+/-}{y}"
+        echo "  -f    crop in place (overwrite originals); else write to cropped/"
+        echo "Example: batch_crop . 12x13+1+2"
+        echo "Example: batch_crop -f . 33x33"
+        [ -n "$o_help" ] && return 0
+        return 1
+    fi
+
+    local im=convert
+    (( $+commands[magick] )) && im=magick
+
+    local -r dir="$1" geom="$2"
+    [ -z "$o_inplace" ] && mkdir -p cropped
+
+    local f
+    for f in "$dir"/*.png(N); do
+        if [ -n "$o_inplace" ];
+        then
+            "$im" "$f" -crop "$geom" "$f"
+        else
+            "$im" "$f" -crop "$geom" "cropped/${f:t}"
+        fi
+    done
     unset f
 }
 
@@ -122,7 +187,7 @@ rand(){
     local -r LEN="${1:-16}"
 
     # Only gets numbers and letters
-    tr -dc "a-zA-Z0-9" < /dev/random | head -c "$LEN"
+    tr -dc "a-zA-Z0-9" < /dev/urandom | head -c "$LEN"
 }
 
 
@@ -132,7 +197,7 @@ rand_letters(){
     local -r LEN="${1:-16}"
 
     # Only gets the letters
-    tr -dc "a-zA-Z" < /dev/random | head -c "$LEN"
+    tr -dc "a-zA-Z" < /dev/urandom | head -c "$LEN"
 }
 
 
@@ -142,7 +207,7 @@ rand_num(){
     local -r LEN="${1:-16}"
 
     # Only gets the numbers
-    tr -dc "0-9" < /dev/random | head -c "$LEN"
+    tr -dc "0-9" < /dev/urandom | head -c "$LEN"
 }
 
 create_random_files(){
@@ -165,11 +230,21 @@ create_random_files(){
             local -r DIR=$4
         fi
 
-        for (( i=0; i<$NUM_FILES; i++ ))
+        local -r RANGE=$(( MAX - MIN + 1 ))
+        if [ "$RANGE" -le 0 ];
+        then
+            echo "Error: max-size must be >= min-size" >&2
+            return 1
+        fi
+
+        local i size
+        for (( i=0; i<NUM_FILES; i++ ))
         do
-            dd if=/dev/urandom of="$DIR/$(rand)" bs=$(( $MIN + $(rand_num) % MAX ))M count=1
+            size=$(( MIN + RANDOM % RANGE ))
+            (( size < 1 )) && size=1
+            dd if=/dev/urandom of="$DIR/$(rand)" bs="${size}M" count=1
         done
-        unset i
+        unset i size
     else
         echo "Not enough arguments"
         return 1
@@ -179,18 +254,30 @@ create_random_files(){
 # $1: First hash file
 # $2: Second hash file
 check_hashes(){
-    # Strip filename from first hash file
-    awk '{print $1}' $1 > aux
+    if [ "$#" -ne 2 ];
+    then
+        echo "Usage: check_hashes <first-hash-file> <second-hash-file>"
+        return 1
+    fi
 
+    local -r GREEN=$'\e[32m' RED=$'\e[31m' NO_COLOR=$'\e[0m'
+    local -r tmp="$(mktemp)"
+
+    # Strip filename from first hash file
+    awk '{print $1}' "$1" > "$tmp"
+
+    local line
     while IFS= read -r line; do
-        if grep -i "$line" "$2";
+        if grep -qi -- "$line" "$2";
         then
             echo -e "$line: ${GREEN}OK${NO_COLOR}"
         else
             echo -e "$line: ${RED}NOT FOUND${NO_COLOR}"
         fi
-    done < "aux"
-    rm aux
+    done < "$tmp"
+
+    rm -f "$tmp"
+    unset line
 }
 
 # Checks if two files are the same by comparing every byte of both files. 
@@ -215,22 +302,22 @@ check_binary_contents(){
     local -r THRESHOLD="1073741824"      # Actual THRESHOLD in bytes. MUST BE POWER OF 2 AND AT LEAST 2^4 (16)
     # local -r THRESHOLD="512"      # Actual THRESHOLD in bytes. MUST BE POWER OF 2 AND AT LEAST 2^4 (16)    
 
-    local old_ifs=IFS
+    local old_ifs=$IFS
     local segments_a segments_b remainder_a remainder_b
     local error_segment err_code
     local diff_res
 
     while IFS= read -r -d '' file
     do
-        other_dir=$(echo "$file" | sed "s/\/$2\//\/$3\//")
+        local other_dir="$1/$3/${file#$1/$2/}"
         echo -e "--------------------------------------------- File $file ---------------------------------------------\n"
         if [ -f "$other_dir" ];
         then
-            segments_a=$(($(du -sb "$file" | cut -f1) / THRESHOLD))
-            remainder_a=$(($(du -sb "$file" | cut -f1) % THRESHOLD))
+            segments_a=$(($(stat -c%s "$file") / THRESHOLD))
+            remainder_a=$(($(stat -c%s "$file") % THRESHOLD))
 
-            segments_b=$(($(du -sb "$other_dir" | cut -f1) / THRESHOLD))
-            remainder_b=$(($(du -sb "$other_dir" | cut -f1) % THRESHOLD))
+            segments_b=$(($(stat -c%s "$other_dir") / THRESHOLD))
+            remainder_b=$(($(stat -c%s "$other_dir") % THRESHOLD))
 
             error_segment="0"
 
@@ -311,19 +398,19 @@ check_binary_contents_cmp(){
     local -r THRESHOLD="1073741824"      # Actual THRESHOLD in bytes. MUST BE POWER OF 2 AND AT LEAST 2^4 (16)
     # local -r THRESHOLD="512"      # Actual THRESHOLD in bytes. MUST BE POWER OF 2 AND AT LEAST 2^4 (16)    
 
-    local old_ifs=IFS
+    local old_ifs=$IFS
     local size_a size_b
     local err_code
     local diff_res
 
     while IFS= read -r -d '' file
     do
-        other_dir=$(echo "$file" | sed "s/\/$2\//\/$3\//")
+        local other_dir="$1/$3/${file#$1/$2/}"
         echo -e "--------------------------------------------- File $file ---------------------------------------------\n"
         if [ -f "$other_dir" ];
         then
-            size_a=$(du -sb "$file" | cut -f1)
-            size_b=$(du -sb "$other_dir" | cut -f1)
+            size_a=$(stat -c%s "$file")
+            size_b=$(stat -c%s "$other_dir")
 
             if [ "$size_a" -eq "$size_b" ];
             then
@@ -352,16 +439,95 @@ check_binary_contents_cmp(){
 }
 
 iommu_groups(){
-    # shopt -s nullglob
-    for g in $(find /sys/kernel/iommu_groups/* -maxdepth 0 -type d | sort -V); do
-        echo "IOMMU Group ${g##*/}:"
-        for d in $g/devices/*; do
-            echo -e "\t$(lspci -nns ${d##*/})"
-        done;
-    done;
+    local g d
+    # (/nN): directories only, numeric sort, nullglob — robust, no word-splitting.
+    for g in /sys/kernel/iommu_groups/*(/nN); do
+        echo "IOMMU Group ${g:t}:"
+        for d in "$g"/devices/*(N); do
+            echo -e "\t$(lspci -nns "${d:t}")"
+        done
+    done
 
-    unset g
-    unset d
+    unset g d
+}
+
+# List partitions whose size is within [min, max] (inclusive).
+# Sizes accept IEC suffixes (K/M/G/T, base 1024) or raw bytes.
+partitions_by_size(){
+    if [ "$#" -ne 2 ];
+    then
+        echo "Usage: partitions_by_size <min-size> <max-size>"
+        echo "  Sizes accept IEC suffixes: K M G T (e.g. 500M, 1G, 2T), or raw bytes."
+        echo "  Prints NAME<TAB>SIZE for partitions with min <= size <= max."
+        echo "Example: partitions_by_size 1G 2G"
+        return 1
+    fi
+
+    local min max
+    min=$(numfmt --from=iec "$1" 2>/dev/null)
+    max=$(numfmt --from=iec "$2" 2>/dev/null)
+
+    if [ -z "$min" ] || [ -z "$max" ];
+    then
+        echo "Error: invalid size (use IEC suffixes like 500M, 1G, 2T, or bytes)" >&2
+        return 1
+    fi
+
+    if [ "$min" -gt "$max" ];
+    then
+        echo "Error: min-size must be <= max-size" >&2
+        return 1
+    fi
+
+    local name size type
+    while read -r name size type;
+    do
+        if [ "$type" = "part" ] && [ "$size" -ge "$min" ] && [ "$size" -le "$max" ];
+        then
+            printf '%s\t%s\n' "$name" "$size"
+        fi
+    done < <(lsblk -b -l -n -o NAME,SIZE,TYPE)
+    unset name size type
+}
+
+# Mount one or more devices under a base directory (default /mnt), creating a
+# subdirectory named after each device's basename.
+mount_partitions(){
+    local -a o_base o_help
+    zparseopts -D -E -F -- b:=o_base -base:=o_base h=o_help -help=o_help 2>/dev/null
+    local -r parse_rc=$?
+
+    if [ "$parse_rc" -ne "0" ];
+    then
+        echo "Error: invalid option" >&2
+        return 1
+    fi
+
+    if [ -n "$o_help" ] || [ "$#" -eq "0" ];
+    then
+        echo "Usage: mount_partitions [-b <base-dir>] <device>..."
+        echo "  Mounts each <device> at <base-dir>/<device-basename>, creating the dir."
+        echo "  -b, --base   base mount directory (default: /mnt)"
+        echo "Example: mount_partitions /dev/mapper/veracrypt1 /dev/mapper/veracrypt2"
+        echo "Example: mount_partitions -b /media /dev/sda1"
+        [ -n "$o_help" ] && return 0
+        return 1
+    fi
+
+    local -r base="${o_base[2]:-/mnt}"
+
+    local i target
+    for i in "$@"
+    do
+        target="$base/${i:t}"
+        if ! mount --mkdir "$i" "$target";
+        then
+            echo "Error: failed to mount $i at $target" >&2
+            unset i target
+            return 1
+        fi
+    done
+    unset i target
 }
 
 
@@ -392,7 +558,7 @@ open_mount_veracrypt(){
     then
         for (( i=1; i<=${#PARTITIONS[@]}; i++ ))
         do
-            echo "$password" | cryptsetup --type tcrypt --veracrypt-pim "$pim" open "${PARTITIONS[i]}" "veracrypt$(( i ))" -
+            print -rn -- "$password" | cryptsetup --type tcrypt --veracrypt-pim "$pim" open "${PARTITIONS[i]}" "veracrypt$(( i ))" -
 
             [ "$?" -ne "0" ] && return 1
 
@@ -403,7 +569,7 @@ open_mount_veracrypt(){
     else
         for (( i=1; i<=${#PARTITIONS[@]}; i++ ))
         do
-            echo "$password" | cryptsetup --type tcrypt --veracrypt-pim "$pim" open "${PARTITIONS[i]}" "veracrypt$(( 64 - i + 1 ))" -
+            print -rn -- "$password" | cryptsetup --type tcrypt --veracrypt-pim "$pim" open "${PARTITIONS[i]}" "veracrypt$(( 64 - i + 1 ))" -
 
             [ "$?" -ne "0" ] && return 1
 
@@ -421,17 +587,39 @@ open_mount_veracrypt(){
 }
 
 
+# Unlock a single device according to the mode flags of the calling
+# open-partitions invocation. zsh locals are dynamically scoped, so this sees
+# the caller's o_fido/o_keyfile/o_vera/keyfile_loc/password/pim. Returns the
+# unlock command's exit code.
+_open_partitions_unlock() {
+    local dev="$1" dm="${1:t}"
+
+    if [ -n "$o_fido" ];
+    then
+        systemd-cryptsetup attach "$dm" "$dev" - fido2-device=auto
+    elif [ -n "$o_keyfile" ];
+    then
+        cryptsetup --key-file "$keyfile_loc" open "$dev" "$dm"
+    elif [ -n "$o_vera" ];
+    then
+        print -rn -- "$password" | cryptsetup --type tcrypt --veracrypt-pim "$pim" open "$dev" "$dm" -
+    else
+        print -rn -- "$password" | cryptsetup open "$dev" "$dm" -
+    fi
+}
+
+
 # Opens (unlocks) one or more LUKS/dm-crypt devices.
-# Modes: password (default), keyfile (-k <file>), FIDO2 (-f / --fido2).
+# Modes: password (default), keyfile (-k <file>), FIDO2 (-f / --fido2), veracrypt/tcrypt (-v / --veracrypt).
 # The mapper name is the last path component of each device (${dev:t}),
 # so /dev/disk/by-uuid/<uuid> maps to /dev/mapper/<uuid>.
 open-partitions(){
-    local -a o_keyfile o_fido o_help
+    local -a o_keyfile o_fido o_vera o_parallel o_help
     # -E keeps parsing tolerant of flags that appear after a device (so a stray
     # "-k"/"-f" is never silently swallowed as a device path); -F rejects
     # unknown flags. Together they keep the -k/-f conflict check reachable
     # regardless of argument order.
-    zparseopts -D -E -F -- k:=o_keyfile f=o_fido -fido2=o_fido h=o_help -help=o_help 2>/dev/null
+    zparseopts -D -E -F -- k:=o_keyfile f=o_fido -fido2=o_fido v=o_vera -veracrypt=o_vera p=o_parallel -parallel=o_parallel h=o_help -help=o_help 2>/dev/null
     local -r parse_rc=$?
 
     if [ "$parse_rc" -ne "0" ];
@@ -442,59 +630,84 @@ open-partitions(){
 
     if [ -n "$o_help" ] || [ "$#" -eq "0" ];
     then
-        echo "Usage: open-partitions [-k <keyfile> | -f | --fido2] <device>..."
+        echo "Usage: open-partitions [-k <keyfile> | -f | --fido2 | -v | --veracrypt] [-p] <device>..."
         echo "  (no flag)      password mode  — prompt once, unlock every device"
         echo "  -k <keyfile>   keyfile mode   — cryptsetup --key-file <keyfile>"
         echo "  -f, --fido2    FIDO2 mode     — systemd-cryptsetup attach ... fido2-device=auto"
+        echo "  -v, --veracrypt veracrypt/tcrypt — prompt password+PIM once, cryptsetup --type tcrypt"
+        echo "  -p, --parallel unlock devices concurrently (ignored for FIDO2)"
         echo "  -h, --help     show this help"
         [ -n "$o_help" ] && return 0
         return 1
     fi
 
-    if [ -n "$o_keyfile" ] && [ -n "$o_fido" ];
+    local -i mode_count=0
+    [ -n "$o_keyfile" ] && (( mode_count++ ))
+    [ -n "$o_fido" ] && (( mode_count++ ))
+    [ -n "$o_vera" ] && (( mode_count++ ))
+    if [ "$mode_count" -gt "1" ];
     then
-        echo "Error: -k and -f/--fido2 are mutually exclusive" >&2
+        echo "Error: -k, -f/--fido2 and -v/--veracrypt are mutually exclusive" >&2
         return 1
     fi
 
     local -r keyfile_loc="${o_keyfile[2]}"
 
-    local password=""
+    local password="" pim=""
     if [ -z "$o_keyfile" ] && [ -z "$o_fido" ];
     then
         echo -n "Password: "
         read -rs password
         echo
+        if [ -n "$o_vera" ];
+        then
+            echo -n "PIM: "
+            read -rs pim
+            echo
+        fi
     fi
 
-    local i dm_name
-    for i in "$@"
-    do
-        # Mapper name = last path component; robust for /dev/disk/by-uuid/... paths.
-        dm_name="${i:t}"
+    if [ -n "$o_parallel" ] && [ -n "$o_fido" ];
+    then
+        echo "Warning: FIDO2 uses a hardware token; ignoring --parallel (running sequentially)" >&2
+    fi
 
-        if [ -n "$o_fido" ];
-        then
-            systemd-cryptsetup attach "$dm_name" "$i" - fido2-device=auto
-        elif [ -n "$o_keyfile" ];
-        then
-            cryptsetup --key-file "$keyfile_loc" open "$i" "$dm_name"
-        else
-            # print -rn (no trailing newline, no escapes) — feeding with echo
-            # appends "\n" and cryptsetup rejects it as "No key available".
-            print -rn -- "$password" | cryptsetup open "$i" "$dm_name" -
-        fi
+    local rc=0 i
+    if [ -n "$o_parallel" ] && [ -z "$o_fido" ];
+    then
+        local -a pids
+        local -A pid_dev
+        local p
+        for i in "$@"
+        do
+            _open_partitions_unlock "$i" &
+            pids+=($!)
+            pid_dev[$!]="$i"
+        done
+        for p in "${pids[@]}"
+        do
+            if ! wait "$p";
+            then
+                echo "Error: failed to unlock ${pid_dev[$p]}" >&2
+                rc=1
+            fi
+        done
+        unset p pids pid_dev
+    else
+        for i in "$@"
+        do
+            if ! _open_partitions_unlock "$i";
+            then
+                rc=1
+                break
+            fi
+        done
+    fi
+    unset i
 
-        if [ "$?" -ne "0" ];
-        then
-            unset i dm_name password
-            return 1
-        fi
-    done
-    unset i dm_name
-
-    # Unsets password to avoid a leak
-    unset password
+    # Unsets secrets to avoid a leak
+    unset password pim
+    return $rc
 }
 
 

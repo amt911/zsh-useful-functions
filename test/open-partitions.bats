@@ -67,3 +67,71 @@ load test_helper
     [ "$status" -eq 0 ]
     [[ "$output" == *"SC:attach sda1 /dev/sda1 - fido2-device=auto"* ]]
 }
+
+@test "open_mount_veracrypt bad first arg prints usage" {
+    run zsh -c 'source "$1"; open_mount_veracrypt zzz' _ "$PLUGIN_FILE"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"Usage: mount_veracrypt"* ]]
+}
+
+@test "open_mount_veracrypt ascending builds veracrypt-pim unlock" {
+    run zsh -c '
+        cryptsetup(){ print "CS:$*"; return 0; }
+        mount(){ print "MNT:$*"; return 0; }
+        source "$1"
+        open_mount_veracrypt 0 /dev/sda1 <<< $'"'"'pw\n1234'"'"'
+    ' _ "$PLUGIN_FILE"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"CS:--type tcrypt --veracrypt-pim 1234 open /dev/sda1 veracrypt1 -"* ]]
+}
+
+@test "veracrypt mode builds tcrypt unlock with basename mapper" {
+    run zsh -c '
+        cryptsetup(){ print "CS:$*"; return 0; }
+        source "$1"
+        open-partitions -v /dev/nvme1n1p4 <<< $'"'"'pw\n1234'"'"'
+    ' _ "$PLUGIN_FILE"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"CS:--type tcrypt --veracrypt-pim 1234 open /dev/nvme1n1p4 nvme1n1p4 -"* ]]
+}
+
+@test "-v conflicts with -k" {
+    run_op -v -k /root/key /dev/sda1
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"mutually exclusive"* ]]
+}
+
+@test "-v conflicts with -f" {
+    run_op -v -f /dev/sda1
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"mutually exclusive"* ]]
+}
+
+@test "parallel mode opens all devices" {
+    run zsh -c '
+        cryptsetup(){ print "CS:$*"; return 0; }
+        source "$1"
+        open-partitions -p /dev/sda1 /dev/sdb1 <<< "pw"
+    ' _ "$PLUGIN_FILE"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"open /dev/sda1 sda1 -"* ]]
+    [[ "$output" == *"open /dev/sdb1 sdb1 -"* ]]
+}
+
+@test "parallel mode reports a failing device and returns non-zero" {
+    run zsh -c '
+        cryptsetup(){ print "CS:$*"; [[ "$*" == *sdb1* ]] && return 1; return 0; }
+        source "$1"
+        open-partitions -p /dev/sda1 /dev/sdb1 <<< "pw"
+    ' _ "$PLUGIN_FILE"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"failed to unlock /dev/sdb1"* ]]
+}
+
+@test "fido2 + parallel warns and runs sequentially" {
+    run_op -f -p /dev/nvme1n1p1 /dev/nvme1n1p2
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"ignoring --parallel"* ]]
+    [[ "$output" == *"SC:attach nvme1n1p1 /dev/nvme1n1p1 - fido2-device=auto"* ]]
+    [[ "$output" == *"SC:attach nvme1n1p2 /dev/nvme1n1p2 - fido2-device=auto"* ]]
+}
