@@ -46,3 +46,15 @@ load test_helper
     [ "${#output}" -eq 8 ]
     [[ "$output" =~ ^[a-zA-Z]+$ ]]
 }
+
+@test "create_random_files rejects max < min" {
+    run zsh -c 'source "$1"; create_random_files 1 5 2 "$2"' _ "$PLUGIN_FILE" "$BATS_TEST_TMPDIR"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"max-size"* ]]
+}
+
+@test "create_random_files with no args prints usage" {
+    run zsh -c 'source "$1"; create_random_files' _ "$PLUGIN_FILE"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"Usage: create_random_files"* ]]
+}

@@ -165,11 +165,21 @@ create_random_files(){
             local -r DIR=$4
         fi
 
-        for (( i=0; i<$NUM_FILES; i++ ))
+        local -r RANGE=$(( MAX - MIN + 1 ))
+        if [ "$RANGE" -le 0 ];
+        then
+            echo "Error: max-size must be >= min-size" >&2
+            return 1
+        fi
+
+        local i size
+        for (( i=0; i<NUM_FILES; i++ ))
         do
-            dd if=/dev/urandom of="$DIR/$(rand)" bs=$(( $MIN + $(rand_num) % MAX ))M count=1
+            size=$(( MIN + RANDOM % RANGE ))
+            (( size < 1 )) && size=1
+            dd if=/dev/urandom of="$DIR/$(rand)" bs="${size}M" count=1
         done
-        unset i
+        unset i size
     else
         echo "Not enough arguments"
         return 1
