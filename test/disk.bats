@@ -77,3 +77,22 @@ _mount_fail='mount(){ print "MNT:$*"; return 1; }'
     [ "$status" -eq 1 ]
     [[ "$output" == *"invalid option"* ]]
 }
+
+@test "mount_partitions -r mounts a device read-only" {
+    run zsh -c "$_mount_ok"'; source "$1"; mount_partitions -r /dev/sda1' _ "$PLUGIN_FILE"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"MNT:-o ro --mkdir /dev/sda1 /mnt/sda1"* ]]
+}
+
+@test "mount_partitions mixes read-only and writable devices in one call" {
+    run zsh -c "$_mount_ok"'; source "$1"; mount_partitions -r /dev/nvme1n1p4 /dev/mapper/veracrypt1' _ "$PLUGIN_FILE"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"MNT:-o ro --mkdir /dev/nvme1n1p4 /mnt/nvme1n1p4"* ]]
+    [[ "$output" == *"MNT:--mkdir /dev/mapper/veracrypt1 /mnt/veracrypt1"* ]]
+}
+
+@test "mount_partitions with only -r (no positional) still mounts, no usage" {
+    run zsh -c "$_mount_ok"'; source "$1"; mount_partitions -r /dev/sda1' _ "$PLUGIN_FILE"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"Usage: mount_partitions"* ]]
+}

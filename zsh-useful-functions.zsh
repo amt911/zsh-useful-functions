@@ -493,8 +493,8 @@ partitions_by_size(){
 # Mount one or more devices under a base directory (default /mnt), creating a
 # subdirectory named after each device's basename.
 mount_partitions(){
-    local -a o_base o_help
-    zparseopts -D -E -F -- b:=o_base -base:=o_base h=o_help -help=o_help 2>/dev/null
+    local -a o_base o_ro o_help
+    zparseopts -D -E -F -- b:=o_base -base:=o_base r+:=o_ro -read-only+:=o_ro h=o_help -help=o_help 2>/dev/null
     local -r parse_rc=$?
 
     if [ "$parse_rc" -ne "0" ];
@@ -503,12 +503,14 @@ mount_partitions(){
         return 1
     fi
 
-    if [ -n "$o_help" ] || [ "$#" -eq "0" ];
+    if [ -n "$o_help" ] || { [ "$#" -eq "0" ] && [ "${#o_ro}" -eq "0" ]; };
     then
-        echo "Usage: mount_partitions [-b <base-dir>] <device>..."
+        echo "Usage: mount_partitions [-b <base-dir>] [-r <ro-device>]... <device>..."
         echo "  Mounts each <device> at <base-dir>/<device-basename>, creating the dir."
-        echo "  -b, --base   base mount directory (default: /mnt)"
-        echo "Example: mount_partitions /dev/mapper/veracrypt1 /dev/mapper/veracrypt2"
+        echo "  -b, --base       base mount directory (default: /mnt)"
+        echo "  -r, --read-only  mount this device read-only (repeatable)"
+        echo "  -h, --help       show this help"
+        echo "Example: mount_partitions -r /dev/nvme1n1p4 /dev/mapper/veracrypt1"
         echo "Example: mount_partitions -b /media /dev/sda1"
         [ -n "$o_help" ] && return 0
         return 1
@@ -516,7 +518,28 @@ mount_partitions(){
 
     local -r base="${o_base[2]:-/mnt}"
 
+    # zparseopts accumulates each -r occurrence; keep only the device values,
+    # dropping any captured flag tokens (robust to both storage forms).
+    local -a ro_devs
+    local tok
+    for tok in "${o_ro[@]}"
+    do
+        [ "$tok" = "-r" ] || [ "$tok" = "--read-only" ] && continue
+        ro_devs+=("$tok")
+    done
+    unset tok
+
     local i target
+    for i in "${ro_devs[@]}"
+    do
+        target="$base/${i:t}"
+        if ! mount -o ro --mkdir "$i" "$target";
+        then
+            echo "Error: failed to mount $i at $target" >&2
+            unset i target
+            return 1
+        fi
+    done
     for i in "$@"
     do
         target="$base/${i:t}"
