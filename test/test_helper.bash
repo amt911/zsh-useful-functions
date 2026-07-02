@@ -25,3 +25,17 @@ run_op_legacy() {
         open_partitions "$@"
     ' _ "$PLUGIN_FILE" "$@"
 }
+
+# Generic: stub external tools, source the plugin, then run the given command.
+# Runs in the current working directory — cd into "$BATS_TEST_TMPDIR" first in
+# tests that touch the filesystem. Stdin is forwarded (for password/PIM prompts).
+run_plugin() {
+    run zsh -c '
+        cryptsetup(){ print "CS:$*"; return 0; }
+        systemd-cryptsetup(){ print "SC:$*"; return 0; }
+        magick(){ print "IM:$*"; return 0; }
+        convert(){ print "IM:$*"; return 0; }
+        source "$1"; shift
+        "$@"
+    ' _ "$PLUGIN_FILE" "$@"
+}
