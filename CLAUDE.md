@@ -57,7 +57,8 @@ Confirm the switch briefly when it happens.
 - **External CLI dependencies (assumed installed, not vendored)**: `imagemagick`
   (`magick`, falling back to `convert` on ImageMagick 6), `pngquant`, `cryptsetup`,
   `systemd-cryptsetup`, `lspci`, `btrfs-progs`, util-linux (`lsblk`, `mount --mkdir`),
-  coreutils (`dd`, `od`, `cmp`, `stat`, `numfmt`).
+  coreutils (`dd`, `od`, `cmp`, `stat`, `numfmt`), `ntfs-3g` (NTFS mounts in
+  `mount_partitions`), `rsync` (`rsync_fanout`).
 - No package manager, no build step — this is a single sourced `.zsh` file.
 
 ## Commands
