@@ -67,3 +67,20 @@ load test_helper
     [ "$status" -eq 0 ]
     [[ "$output" == *"SC:attach sda1 /dev/sda1 - fido2-device=auto"* ]]
 }
+
+@test "open_mount_veracrypt bad first arg prints usage" {
+    run zsh -c 'source "$1"; open_mount_veracrypt zzz' _ "$PLUGIN_FILE"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"Usage: mount_veracrypt"* ]]
+}
+
+@test "open_mount_veracrypt ascending builds veracrypt-pim unlock" {
+    run zsh -c '
+        cryptsetup(){ print "CS:$*"; return 0; }
+        mount(){ print "MNT:$*"; return 0; }
+        source "$1"
+        open_mount_veracrypt 0 /dev/sda1 <<< $'"'"'pw\n1234'"'"'
+    ' _ "$PLUGIN_FILE"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"CS:--type tcrypt --veracrypt-pim 1234 open /dev/sda1 veracrypt1 -"* ]]
+}

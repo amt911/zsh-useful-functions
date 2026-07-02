@@ -414,7 +414,7 @@ open_mount_veracrypt(){
     then
         for (( i=1; i<=${#PARTITIONS[@]}; i++ ))
         do
-            echo "$password" | cryptsetup --type tcrypt --veracrypt-pim "$pim" open "${PARTITIONS[i]}" "veracrypt$(( i ))" -
+            print -rn -- "$password" | cryptsetup --type tcrypt --veracrypt-pim "$pim" open "${PARTITIONS[i]}" "veracrypt$(( i ))" -
 
             [ "$?" -ne "0" ] && return 1
 
@@ -425,7 +425,7 @@ open_mount_veracrypt(){
     else
         for (( i=1; i<=${#PARTITIONS[@]}; i++ ))
         do
-            echo "$password" | cryptsetup --type tcrypt --veracrypt-pim "$pim" open "${PARTITIONS[i]}" "veracrypt$(( 64 - i + 1 ))" -
+            print -rn -- "$password" | cryptsetup --type tcrypt --veracrypt-pim "$pim" open "${PARTITIONS[i]}" "veracrypt$(( 64 - i + 1 ))" -
 
             [ "$?" -ne "0" ] && return 1
 
