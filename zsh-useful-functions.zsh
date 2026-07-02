@@ -313,11 +313,11 @@ check_binary_contents(){
         echo -e "--------------------------------------------- File $file ---------------------------------------------\n"
         if [ -f "$other_dir" ];
         then
-            segments_a=$(($(du -sb "$file" | cut -f1) / THRESHOLD))
-            remainder_a=$(($(du -sb "$file" | cut -f1) % THRESHOLD))
+            segments_a=$(($(stat -c%s "$file") / THRESHOLD))
+            remainder_a=$(($(stat -c%s "$file") % THRESHOLD))
 
-            segments_b=$(($(du -sb "$other_dir" | cut -f1) / THRESHOLD))
-            remainder_b=$(($(du -sb "$other_dir" | cut -f1) % THRESHOLD))
+            segments_b=$(($(stat -c%s "$other_dir") / THRESHOLD))
+            remainder_b=$(($(stat -c%s "$other_dir") % THRESHOLD))
 
             error_segment="0"
 
@@ -409,8 +409,8 @@ check_binary_contents_cmp(){
         echo -e "--------------------------------------------- File $file ---------------------------------------------\n"
         if [ -f "$other_dir" ];
         then
-            size_a=$(du -sb "$file" | cut -f1)
-            size_b=$(du -sb "$other_dir" | cut -f1)
+            size_a=$(stat -c%s "$file")
+            size_b=$(stat -c%s "$other_dir")
 
             if [ "$size_a" -eq "$size_b" ];
             then

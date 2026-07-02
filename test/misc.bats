@@ -26,6 +26,17 @@ load test_helper
     [[ "$output" != *"does not exist on b"* ]]
 }
 
+@test "check_binary_contents_cmp finds the mirrored file (path rewrite)" {
+    cd "$BATS_TEST_TMPDIR"
+    mkdir -p root/a/sub root/b/sub
+    printf 'same' > root/a/sub/f.bin
+    printf 'same' > root/b/sub/f.bin
+    run_plugin check_binary_contents_cmp root a b
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Both files are the same"* ]]
+    [[ "$output" != *"does not exist"* ]]
+}
+
 @test "rand honors requested length and charset" {
     run zsh -c 'source "$1"; rand 12' _ "$PLUGIN_FILE"
     [ "$status" -eq 0 ]
