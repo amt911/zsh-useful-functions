@@ -106,22 +106,41 @@ batch_resize(){
 }
 
 batch_crop() {
-    if [ "$#" -eq 2 ]; then
-        [ ! -d "cropped" ] && mkdir cropped
-        
-        for f in "$1"/*.png; do
-            convert "$f" -crop "$2" "cropped/$f"
-        done
-    elif [ "$#" -eq 3 ]; then
-        for f in "$2"/*.png; do
-            convert "$f" -crop "$3" "$f"
-        done
-    else
-        echo "Usage: batch_crop [-f] <directory> {x}x{y}{+/-}{x}{+/-}{y}"
-        echo "Example: batch_crop . 12x13+1+2"
-        echo "Example: batch_crop -f . 33x33"
+    local -a o_inplace o_help
+    zparseopts -D -E -F -- f=o_inplace h=o_help -help=o_help 2>/dev/null
+    local -r parse_rc=$?
+
+    if [ "$parse_rc" -ne "0" ];
+    then
+        echo "Error: invalid option" >&2
         return 1
     fi
+
+    if [ -n "$o_help" ] || [ "$#" -ne "2" ];
+    then
+        echo "Usage: batch_crop [-f] <directory> {x}x{y}{+/-}{x}{+/-}{y}"
+        echo "  -f    crop in place (overwrite originals); else write to cropped/"
+        echo "Example: batch_crop . 12x13+1+2"
+        echo "Example: batch_crop -f . 33x33"
+        [ -n "$o_help" ] && return 0
+        return 1
+    fi
+
+    local im=convert
+    (( $+commands[magick] )) && im=magick
+
+    local -r dir="$1" geom="$2"
+    [ -z "$o_inplace" ] && mkdir -p cropped
+
+    local f
+    for f in "$dir"/*.png(N); do
+        if [ -n "$o_inplace" ];
+        then
+            "$im" "$f" -crop "$geom" "$f"
+        else
+            "$im" "$f" -crop "$geom" "cropped/${f:t}"
+        fi
+    done
     unset f
 }
 

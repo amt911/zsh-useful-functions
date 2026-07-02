@@ -56,3 +56,28 @@ load test_helper
     [ "$status" -eq 1 ]
     [[ "$output" == *"Usage: batch_resize"* ]]
 }
+
+@test "batch_crop writes to cropped/<basename> and creates the dir" {
+    cd "$BATS_TEST_TMPDIR"
+    touch a.png
+    run_plugin batch_crop . 12x13+1+2
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"-crop 12x13+1+2"* ]]
+    [[ "$output" == *"cropped/a.png"* ]]
+    [ -d cropped ]
+}
+
+@test "batch_crop -f crops in place" {
+    cd "$BATS_TEST_TMPDIR"
+    touch a.png
+    run_plugin batch_crop -f . 33x33
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"IM:./a.png -crop 33x33 ./a.png"* ]]
+    [ ! -d cropped ]
+}
+
+@test "batch_crop wrong arg count prints usage" {
+    run_plugin batch_crop .
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"Usage: batch_crop"* ]]
+}
