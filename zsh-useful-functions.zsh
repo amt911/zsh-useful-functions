@@ -7,35 +7,63 @@ else
 fi 
 
 # Personal scripts rewritten to functions, so they can be called directly
-# REWRITE THIS FUNCTION SO IT CAN TAKE AN ARBITRARY AMOUNT OF SWITCHES
+# Convert PNG files to JPG.
 convert_png_to_jpg() {
-    if [ "$#" -eq 0 ]; then
-        echo "Usage: convert_png_to_jpg [-r] <quality-number> <path>"
-        echo "Example: convert_png_to_jpg ."
-        echo "Example: convert_png_to_jpg -r ."
-        echo "Example: convert_png_to_jpg -r 33 ."
+    local -a o_recursive o_help
+    zparseopts -D -E -F -- r=o_recursive h=o_help -help=o_help 2>/dev/null
+    local -r parse_rc=$?
+
+    if [ "$parse_rc" -ne "0" ];
+    then
+        echo "Error: invalid option" >&2
         return 1
     fi
 
-    local f
-    if [ "$#" -eq 1 ]; then
-        for f in "$1"/*.png; do
-	        jpg_name=${f/%.png/.jpg}
-	        convert "$f" "$jpg_name"
-        done
-
-    elif [ "$#" -eq 2 ]; then
-        for f in "$2"/**/*.png; do
-	        jpg_name=${f/%.png/.jpg}
-	        convert "$f" "$jpg_name"
-        done
-    else
-        for f in "$3"/**/*.png; do
-	        jpg_name=${f/%.png/.jpg}
-	        convert "$f" -quality "$2" "$jpg_name"
-        done
+    if [ -n "$o_help" ] || [ "$#" -eq "0" ];
+    then
+        echo "Usage: convert_png_to_jpg [-r] [<quality>] <path>"
+        echo "  -r          recurse into subdirectories"
+        echo "  <quality>   optional JPEG quality (1-100)"
+        echo "Example: convert_png_to_jpg ."
+        echo "Example: convert_png_to_jpg -r 33 ."
+        [ -n "$o_help" ] && return 0
+        return 1
     fi
-    unset f
+
+    local im=convert
+    (( $+commands[magick] )) && im=magick
+
+    local quality path
+    if [ "$#" -eq "1" ];
+    then
+        path="$1"
+    elif [ "$#" -eq "2" ];
+    then
+        quality="$1"; path="$2"
+    else
+        echo "Error: expected [<quality>] <path>" >&2
+        return 1
+    fi
+
+    local -a pngs
+    if [ -n "$o_recursive" ];
+    then
+        pngs=("$path"/**/*.png(N))
+    else
+        pngs=("$path"/*.png(N))
+    fi
+
+    local f jpg_name
+    for f in "${pngs[@]}"; do
+        jpg_name="${f/%.png/.jpg}"
+        if [ -n "$quality" ];
+        then
+            "$im" "$f" -quality "$quality" "$jpg_name"
+        else
+            "$im" "$f" "$jpg_name"
+        fi
+    done
+    unset f jpg_name
 }
 
 batch_resize(){
