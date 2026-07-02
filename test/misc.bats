@@ -58,3 +58,20 @@ load test_helper
     [ "$status" -eq 1 ]
     [[ "$output" == *"Usage: create_random_files"* ]]
 }
+
+@test "check_hashes does not clobber ./aux" {
+    cd "$BATS_TEST_TMPDIR"
+    printf 'PRECIOUS' > aux
+    printf 'deadbeef  file1\n' > h1
+    printf 'deadbeef  file1\n' > h2
+    run_plugin check_hashes h1 h2
+    [ "$status" -eq 0 ]
+    [ "$(cat aux)" = "PRECIOUS" ]
+    [[ "$output" == *"OK"* ]]
+}
+
+@test "check_hashes with wrong arg count prints usage" {
+    run zsh -c 'source "$1"; check_hashes onlyone' _ "$PLUGIN_FILE"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"Usage: check_hashes"* ]]
+}

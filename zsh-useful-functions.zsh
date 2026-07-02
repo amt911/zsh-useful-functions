@@ -189,18 +189,30 @@ create_random_files(){
 # $1: First hash file
 # $2: Second hash file
 check_hashes(){
-    # Strip filename from first hash file
-    awk '{print $1}' $1 > aux
+    if [ "$#" -ne 2 ];
+    then
+        echo "Usage: check_hashes <first-hash-file> <second-hash-file>"
+        return 1
+    fi
 
+    local -r GREEN=$'\e[32m' RED=$'\e[31m' NO_COLOR=$'\e[0m'
+    local -r tmp="$(mktemp)"
+
+    # Strip filename from first hash file
+    awk '{print $1}' "$1" > "$tmp"
+
+    local line
     while IFS= read -r line; do
-        if grep -i "$line" "$2";
+        if grep -qi -- "$line" "$2";
         then
             echo -e "$line: ${GREEN}OK${NO_COLOR}"
         else
             echo -e "$line: ${RED}NOT FOUND${NO_COLOR}"
         fi
-    done < "aux"
-    rm aux
+    done < "$tmp"
+
+    rm -f "$tmp"
+    unset line
 }
 
 # Checks if two files are the same by comparing every byte of both files. 
