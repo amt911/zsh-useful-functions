@@ -74,11 +74,16 @@ Use zsh-native `zparseopts`:
 
 ```zsh
 local -a o_keyfile o_fido o_help
-zparseopts -D -E -- k:=o_keyfile f=o_fido -fido2=o_fido h=o_help -help=o_help
+zparseopts -D -E -F -- k:=o_keyfile f=o_fido -fido2=o_fido h=o_help -help=o_help
 ```
 
 - `-D` removes parsed options from the positional list.
-- `-E` keeps parsing tolerant of interleaved args.
+- `-E` keeps parsing tolerant of interleaved args (a flag appearing after a
+  device is still parsed, not silently swallowed as a device path). Without it,
+  `open-partitions /dev/x -k key` would treat `-k` as a device and bypass the
+  `-k`/`-f` conflict check.
+- `-F` rejects unknown flags (returns non-zero) instead of leaving them in the
+  positional list. `-E` and `-F` compose: interleaved-tolerant AND strict.
 - After parsing, `$@` holds the device list.
 
 Validation:
