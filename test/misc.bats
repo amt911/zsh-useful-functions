@@ -25,3 +25,24 @@ load test_helper
     [[ "$output" == *"Both files are the same"* ]]
     [[ "$output" != *"does not exist on b"* ]]
 }
+
+@test "rand honors requested length and charset" {
+    run zsh -c 'source "$1"; rand 12' _ "$PLUGIN_FILE"
+    [ "$status" -eq 0 ]
+    [ "${#output}" -eq 12 ]
+    [[ "$output" =~ ^[a-zA-Z0-9]+$ ]]
+}
+
+@test "rand_num returns only digits" {
+    run zsh -c 'source "$1"; rand_num 8' _ "$PLUGIN_FILE"
+    [ "$status" -eq 0 ]
+    [ "${#output}" -eq 8 ]
+    [[ "$output" =~ ^[0-9]+$ ]]
+}
+
+@test "rand_letters returns only letters" {
+    run zsh -c 'source "$1"; rand_letters 8' _ "$PLUGIN_FILE"
+    [ "$status" -eq 0 ]
+    [ "${#output}" -eq 8 ]
+    [[ "$output" =~ ^[a-zA-Z]+$ ]]
+}

@@ -122,7 +122,7 @@ rand(){
     local -r LEN="${1:-16}"
 
     # Only gets numbers and letters
-    tr -dc "a-zA-Z0-9" < /dev/random | head -c "$LEN"
+    tr -dc "a-zA-Z0-9" < /dev/urandom | head -c "$LEN"
 }
 
 
@@ -132,7 +132,7 @@ rand_letters(){
     local -r LEN="${1:-16}"
 
     # Only gets the letters
-    tr -dc "a-zA-Z" < /dev/random | head -c "$LEN"
+    tr -dc "a-zA-Z" < /dev/urandom | head -c "$LEN"
 }
 
 
@@ -142,7 +142,7 @@ rand_num(){
     local -r LEN="${1:-16}"
 
     # Only gets the numbers
-    tr -dc "0-9" < /dev/random | head -c "$LEN"
+    tr -dc "0-9" < /dev/urandom | head -c "$LEN"
 }
 
 create_random_files(){
