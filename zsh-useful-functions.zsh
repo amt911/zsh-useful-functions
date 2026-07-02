@@ -490,6 +490,46 @@ partitions_by_size(){
     unset name size type
 }
 
+# Mount one or more devices under a base directory (default /mnt), creating a
+# subdirectory named after each device's basename.
+mount_partitions(){
+    local -a o_base o_help
+    zparseopts -D -E -F -- b:=o_base -base:=o_base h=o_help -help=o_help 2>/dev/null
+    local -r parse_rc=$?
+
+    if [ "$parse_rc" -ne "0" ];
+    then
+        echo "Error: invalid option" >&2
+        return 1
+    fi
+
+    if [ -n "$o_help" ] || [ "$#" -eq "0" ];
+    then
+        echo "Usage: mount_partitions [-b <base-dir>] <device>..."
+        echo "  Mounts each <device> at <base-dir>/<device-basename>, creating the dir."
+        echo "  -b, --base   base mount directory (default: /mnt)"
+        echo "Example: mount_partitions /dev/mapper/veracrypt1 /dev/mapper/veracrypt2"
+        echo "Example: mount_partitions -b /media /dev/sda1"
+        [ -n "$o_help" ] && return 0
+        return 1
+    fi
+
+    local -r base="${o_base[2]:-/mnt}"
+
+    local i target
+    for i in "$@"
+    do
+        target="$base/${i:t}"
+        if ! mount --mkdir "$i" "$target";
+        then
+            echo "Error: failed to mount $i at $target" >&2
+            unset i target
+            return 1
+        fi
+    done
+    unset i target
+}
+
 
 open_mount_veracrypt(){
 
