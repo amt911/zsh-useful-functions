@@ -215,14 +215,14 @@ check_binary_contents(){
     local -r THRESHOLD="1073741824"      # Actual THRESHOLD in bytes. MUST BE POWER OF 2 AND AT LEAST 2^4 (16)
     # local -r THRESHOLD="512"      # Actual THRESHOLD in bytes. MUST BE POWER OF 2 AND AT LEAST 2^4 (16)    
 
-    local old_ifs=IFS
+    local old_ifs=$IFS
     local segments_a segments_b remainder_a remainder_b
     local error_segment err_code
     local diff_res
 
     while IFS= read -r -d '' file
     do
-        other_dir=$(echo "$file" | sed "s/\/$2\//\/$3\//")
+        local other_dir="$1/$3/${file#$1/$2/}"
         echo -e "--------------------------------------------- File $file ---------------------------------------------\n"
         if [ -f "$other_dir" ];
         then
@@ -311,14 +311,14 @@ check_binary_contents_cmp(){
     local -r THRESHOLD="1073741824"      # Actual THRESHOLD in bytes. MUST BE POWER OF 2 AND AT LEAST 2^4 (16)
     # local -r THRESHOLD="512"      # Actual THRESHOLD in bytes. MUST BE POWER OF 2 AND AT LEAST 2^4 (16)    
 
-    local old_ifs=IFS
+    local old_ifs=$IFS
     local size_a size_b
     local err_code
     local diff_res
 
     while IFS= read -r -d '' file
     do
-        other_dir=$(echo "$file" | sed "s/\/$2\//\/$3\//")
+        local other_dir="$1/$3/${file#$1/$2/}"
         echo -e "--------------------------------------------- File $file ---------------------------------------------\n"
         if [ -f "$other_dir" ];
         then
