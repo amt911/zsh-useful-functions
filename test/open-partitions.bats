@@ -106,3 +106,32 @@ load test_helper
     [ "$status" -eq 1 ]
     [[ "$output" == *"mutually exclusive"* ]]
 }
+
+@test "parallel mode opens all devices" {
+    run zsh -c '
+        cryptsetup(){ print "CS:$*"; return 0; }
+        source "$1"
+        open-partitions -p /dev/sda1 /dev/sdb1 <<< "pw"
+    ' _ "$PLUGIN_FILE"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"open /dev/sda1 sda1 -"* ]]
+    [[ "$output" == *"open /dev/sdb1 sdb1 -"* ]]
+}
+
+@test "parallel mode reports a failing device and returns non-zero" {
+    run zsh -c '
+        cryptsetup(){ print "CS:$*"; [[ "$*" == *sdb1* ]] && return 1; return 0; }
+        source "$1"
+        open-partitions -p /dev/sda1 /dev/sdb1 <<< "pw"
+    ' _ "$PLUGIN_FILE"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"failed to unlock /dev/sdb1"* ]]
+}
+
+@test "fido2 + parallel warns and runs sequentially" {
+    run_op -f -p /dev/nvme1n1p1 /dev/nvme1n1p2
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"ignoring --parallel"* ]]
+    [[ "$output" == *"SC:attach nvme1n1p1 /dev/nvme1n1p1 - fido2-device=auto"* ]]
+    [[ "$output" == *"SC:attach nvme1n1p2 /dev/nvme1n1p2 - fido2-device=auto"* ]]
+}

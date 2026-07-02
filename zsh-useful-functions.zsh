@@ -535,12 +535,12 @@ _open_partitions_unlock() {
 # The mapper name is the last path component of each device (${dev:t}),
 # so /dev/disk/by-uuid/<uuid> maps to /dev/mapper/<uuid>.
 open-partitions(){
-    local -a o_keyfile o_fido o_vera o_help
+    local -a o_keyfile o_fido o_vera o_parallel o_help
     # -E keeps parsing tolerant of flags that appear after a device (so a stray
     # "-k"/"-f" is never silently swallowed as a device path); -F rejects
     # unknown flags. Together they keep the -k/-f conflict check reachable
     # regardless of argument order.
-    zparseopts -D -E -F -- k:=o_keyfile f=o_fido -fido2=o_fido v=o_vera -veracrypt=o_vera h=o_help -help=o_help 2>/dev/null
+    zparseopts -D -E -F -- k:=o_keyfile f=o_fido -fido2=o_fido v=o_vera -veracrypt=o_vera p=o_parallel -parallel=o_parallel h=o_help -help=o_help 2>/dev/null
     local -r parse_rc=$?
 
     if [ "$parse_rc" -ne "0" ];
@@ -588,15 +588,42 @@ open-partitions(){
         fi
     fi
 
-    local i rc=0
-    for i in "$@"
-    do
-        if ! _open_partitions_unlock "$i";
-        then
-            rc=1
-            break
-        fi
-    done
+    if [ -n "$o_parallel" ] && [ -n "$o_fido" ];
+    then
+        echo "Warning: FIDO2 uses a hardware token; ignoring --parallel (running sequentially)" >&2
+    fi
+
+    local rc=0 i
+    if [ -n "$o_parallel" ] && [ -z "$o_fido" ];
+    then
+        local -a pids
+        local -A pid_dev
+        local p
+        for i in "$@"
+        do
+            _open_partitions_unlock "$i" &
+            pids+=($!)
+            pid_dev[$!]="$i"
+        done
+        for p in "${pids[@]}"
+        do
+            if ! wait "$p";
+            then
+                echo "Error: failed to unlock ${pid_dev[$p]}" >&2
+                rc=1
+            fi
+        done
+        unset p pids pid_dev
+    else
+        for i in "$@"
+        do
+            if ! _open_partitions_unlock "$i";
+            then
+                rc=1
+                break
+            fi
+        done
+    fi
     unset i
 
     # Unsets secrets to avoid a leak
