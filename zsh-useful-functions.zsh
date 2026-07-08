@@ -490,11 +490,49 @@ partitions_by_size(){
     unset name size type
 }
 
+# Mount a single device at <base>/<device-basename>. NTFS devices (per
+# `lsblk -no FSTYPE`) use the ntfs-3g driver (mountpoint created first, since
+# ntfs-3g has no --mkdir); others use native `mount --mkdir`. ro=1 adds -o ro.
+# Prints an error and returns the driver's exit code on failure.
+_mount_partitions_one() {
+    local -r ro="$1" dev="$2" base="$3"
+    local -r target="$base/${dev:t}"
+    local fstype
+    fstype="$(lsblk -no FSTYPE "$dev" 2>/dev/null)"
+
+    local rc
+    if [ "$fstype" = "ntfs" ];
+    then
+        if [ "$ro" = "1" ];
+        then
+            mkdir -p "$target" && ntfs-3g -o ro "$dev" "$target"
+        else
+            mkdir -p "$target" && ntfs-3g "$dev" "$target"
+        fi
+    else
+        if [ "$ro" = "1" ];
+        then
+            mount -o ro --mkdir "$dev" "$target"
+        else
+            mount --mkdir "$dev" "$target"
+        fi
+    fi
+    rc=$?
+
+    if [ "$rc" -ne "0" ];
+    then
+        echo "Error: failed to mount $dev at $target" >&2
+    fi
+    return "$rc"
+}
+
 # Mount one or more devices under a base directory (default /mnt), creating a
-# subdirectory named after each device's basename.
+# subdirectory named after each device's basename. Devices passed with -r /
+# --read-only are mounted read-only (and first); NTFS devices are auto-detected
+# and mounted via ntfs-3g (see _mount_partitions_one).
 mount_partitions(){
-    local -a o_base o_help
-    zparseopts -D -E -F -- b:=o_base -base:=o_base h=o_help -help=o_help 2>/dev/null
+    local -a o_base o_ro o_help
+    zparseopts -D -E -F -- b:=o_base -base:=o_base r+:=o_ro -read-only+:=o_ro h=o_help -help=o_help 2>/dev/null
     local -r parse_rc=$?
 
     if [ "$parse_rc" -ne "0" ];
@@ -503,12 +541,14 @@ mount_partitions(){
         return 1
     fi
 
-    if [ -n "$o_help" ] || [ "$#" -eq "0" ];
+    if [ -n "$o_help" ] || { [ "$#" -eq "0" ] && [ "${#o_ro}" -eq "0" ]; };
     then
-        echo "Usage: mount_partitions [-b <base-dir>] <device>..."
+        echo "Usage: mount_partitions [-b <base-dir>] [-r <ro-device>]... <device>..."
         echo "  Mounts each <device> at <base-dir>/<device-basename>, creating the dir."
-        echo "  -b, --base   base mount directory (default: /mnt)"
-        echo "Example: mount_partitions /dev/mapper/veracrypt1 /dev/mapper/veracrypt2"
+        echo "  -b, --base       base mount directory (default: /mnt)"
+        echo "  -r, --read-only  mount this device read-only (repeatable)"
+        echo "  -h, --help       show this help"
+        echo "Example: mount_partitions -r /dev/nvme1n1p4 /dev/mapper/veracrypt1"
         echo "Example: mount_partitions -b /media /dev/sda1"
         [ -n "$o_help" ] && return 0
         return 1
@@ -516,18 +556,93 @@ mount_partitions(){
 
     local -r base="${o_base[2]:-/mnt}"
 
-    local i target
+    # zparseopts accumulates each -r occurrence; keep only the device values,
+    # dropping any captured flag tokens (robust to both storage forms).
+    local -a ro_devs
+    local tok
+    for tok in "${o_ro[@]}"
+    do
+        [ "$tok" = "-r" ] || [ "$tok" = "--read-only" ] && continue
+        ro_devs+=("$tok")
+    done
+    unset tok
+
+    local i
+    for i in "${ro_devs[@]}"
+    do
+        _mount_partitions_one 1 "$i" "$base" || { unset i; return 1; }
+    done
     for i in "$@"
     do
-        target="$base/${i:t}"
-        if ! mount --mkdir "$i" "$target";
+        _mount_partitions_one 0 "$i" "$base" || { unset i; return 1; }
+    done
+    unset i
+}
+
+# Rsync one source to many destinations with a fixed set of excludes.
+# Always uses -avc. --delete and --dry-run are opt-in. Aborts on first failure.
+rsync_fanout(){
+    local -a o_dry o_delete o_exclude o_help
+    zparseopts -D -E -F -- n=o_dry -dry-run=o_dry D=o_delete -delete=o_delete x+:=o_exclude -exclude+:=o_exclude h=o_help -help=o_help 2>/dev/null
+    local -r parse_rc=$?
+
+    if [ "$parse_rc" -ne "0" ];
+    then
+        echo "Error: invalid option" >&2
+        return 1
+    fi
+
+    if [ -n "$o_help" ] || [ "$#" -lt "2" ];
+    then
+        echo "Usage: rsync_fanout [-n] [-D] [-x <pattern>]... <source> <dest>..."
+        echo "  Rsync <source> to every <dest> with -avc and a fixed set of excludes."
+        echo "  -n, --dry-run   pass --dry-run to rsync (no changes made)"
+        echo "  -D, --delete    pass --delete to rsync (destructive; off by default)"
+        echo "  -x, --exclude   extra --exclude pattern (repeatable)"
+        echo "  -h, --help      show this help"
+        echo "  Built-in excludes: 'System Volume Information', '\$RECYCLE.BIN',"
+        echo "                     'Versiones anteriores', '.Trash-1000'"
+        echo "Example: rsync_fanout -D /mnt/nvme1n1p4/ /mnt/veracrypt1 /mnt/veracrypt2"
+        [ -n "$o_help" ] && return 0
+        return 1
+    fi
+
+    local -r source="$1"
+    shift
+
+    local -a rsync_flags
+    rsync_flags=( -avc )
+    [ -n "$o_dry" ] && rsync_flags+=( --dry-run )
+    [ -n "$o_delete" ] && rsync_flags+=( --delete )
+
+    local -a excludes
+    excludes=(
+        --exclude 'System Volume Information'
+        --exclude '$RECYCLE.BIN'
+        --exclude 'Versiones anteriores'
+        --exclude '.Trash-1000'
+    )
+
+    # Append any extra -x/--exclude patterns, dropping captured flag tokens.
+    local tok
+    for tok in "${o_exclude[@]}"
+    do
+        [ "$tok" = "-x" ] || [ "$tok" = "--exclude" ] && continue
+        excludes+=( --exclude "$tok" )
+    done
+    unset tok
+
+    local d
+    for d in "$@"
+    do
+        if ! rsync "${rsync_flags[@]}" "${excludes[@]}" "$source" "$d";
         then
-            echo "Error: failed to mount $i at $target" >&2
-            unset i target
+            echo "Error: rsync to $d failed" >&2
+            unset d
             return 1
         fi
     done
-    unset i target
+    unset d
 }
 
 
