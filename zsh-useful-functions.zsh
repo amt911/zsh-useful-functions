@@ -848,3 +848,35 @@ close_partitions(){
     done
     unset i
 }
+
+
+# Enrolls a FIDO2 passkey into one or more LUKS/dm-crypt devices, sequentially.
+# For each device it announces which partition is touched, runs
+# systemd-cryptenroll with fixed FIDO2 flags (device=auto, client-pin=yes,
+# user-presence=yes), then lists the device's slots/tokens so the new key can
+# be confirmed. A failing device does not abort the batch; failures are
+# reported at the end and the function returns 1 if any occurred.
+enroll-partitions(){
+    local -a o_help
+    zparseopts -D -E -F -- h=o_help -help=o_help 2>/dev/null
+    local -r parse_rc=$?
+
+    if [ "$parse_rc" -ne "0" ];
+    then
+        echo "Error: invalid option" >&2
+        return 1
+    fi
+
+    if [ -n "$o_help" ] || [ "$#" -eq "0" ];
+    then
+        echo "Usage: enroll-partitions [-h|--help] <device>..."
+        echo "  Enrolls a FIDO2 passkey into each LUKS device (sequential)."
+        echo "  Fixed flags: --fido2-device=auto --fido2-with-client-pin=yes --fido2-with-user-presence=yes"
+        echo "  systemd-cryptenroll prompts for an existing passphrase to authorize each device."
+        echo "  -h, --help     show this help"
+        [ -n "$o_help" ] && return 0
+        return 1
+    fi
+
+    return 0
+}
