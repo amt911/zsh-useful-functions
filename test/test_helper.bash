@@ -39,3 +39,24 @@ run_plugin() {
         "$@"
     ' _ "$PLUGIN_FILE" "$@"
 }
+
+# Run enroll-partitions in a fresh zsh with systemd-cryptenroll stubbed.
+# The stub prints "CE:<args>" and succeeds. If the environment variable
+# ENROLL_FAIL is set and BOTH it and "--fido2-device" appear in the args, the
+# stub returns 1 — this fails the *enroll* call (which carries the fido2 flags)
+# for the named device while leaving the no-flag verify call succeeding.
+# Usage: run_enroll <args...>            # ENROLL_FAIL passed via `ENROLL_FAIL=... run_enroll ...`
+run_enroll() {
+    run zsh -c '
+        systemd-cryptenroll(){
+            if [ -n "$ENROLL_FAIL" ] && [[ "$*" == *"$ENROLL_FAIL"* ]] && [[ "$*" == *"--fido2-device"* ]]; then
+                return 1
+            fi
+            print "CE:$*"
+            return 0
+        }
+        source "$1"
+        shift
+        enroll-partitions "$@"
+    ' _ "$PLUGIN_FILE" "$@"
+}
