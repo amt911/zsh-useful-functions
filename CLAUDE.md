@@ -1,7 +1,8 @@
 # zsh-useful-functions — Claude Guide
 
-Personal zsh plugin: a grab-bag of shell functions (image batch ops, disk/dedupe helpers,
-LUKS/dm-crypt and VeraCrypt volume open/close, file-hash checks, IOMMU groups, random
+Personal zsh plugin: a grab-bag of shell functions (image batch ops, disk/dedupe and
+binary-content compares, LUKS/dm-crypt and VeraCrypt volume open/close, size-based partition
+mounting, `rsync` fan-out, btrfs/snapper root remount, file-hash checks, IOMMU groups, random
 string/file generators). Single-user tool, sourced directly or via a zsh plugin manager.
 
 ## Start here
@@ -46,6 +47,14 @@ User instructions always take precedence over skills; skills override default be
 - **"normal mode"** (default) — standard superpowers behavior, plus: when delegating
   coding work, dispatch at most 1 agent at a time, and never use a model above Sonnet
   (no Opus).
+- **"modo desatendido"** (unattended mode) — the user is away and delegates autonomy: work
+  without waiting for confirmations and make reasonable decisions yourself instead of asking.
+  In this mode you MAY **`git push` the feature branches you create** and **open PRs via `gh`**
+  on your own. The hard limits still hold and are NOT lifted: **never merge anything** (no
+  `git merge`, no fast-forward integration, no `gh pr merge`), **never push to `main`** or any
+  protected branch directly, and **never** `git push --force` / `--force-with-lease`. Deliver
+  everything as pushed branches + PRs for the user to merge. Reverts to defaults on
+  **"normal mode"**.
 
 Confirm the switch briefly when it happens.
 
@@ -86,8 +95,8 @@ their arg-parsing/usage paths (see TDD exceptions below). Coverage is not yet ga
 
 - **Test runner**: [bats-core](https://github.com/bats-core/bats-core), vendored as a
   submodule at `test/bats`. Specs live in `test/*.bats`, grouped by area
-  (`open-partitions.bats`, `image.bats`, `misc.bats`, `smoke.bats`); shared stubs and the
-  `run_op`/`run_plugin` helpers live in `test/test_helper.bash`.
+  (`open-partitions.bats`, `disk.bats`, `image.bats`, `misc.bats`, `smoke.bats`); shared stubs
+  and the `run_op`/`run_plugin` helpers live in `test/test_helper.bash`.
 - **Lint**: `shellcheck --shell=bash` is run manually against changed functions before
   committing. It has no zsh dialect, so zsh-only constructs (glob qualifiers like `(N)`,
   `zparseopts`, `$+commands`, `print -rn`) produce parse-error false positives — don't
@@ -112,8 +121,8 @@ Exceptions (TDD not required):
   argument-parsing and usage-error paths only; don't fake the destructive core logic.
 
 Rules:
-- **Don't skip tests to ship faster** — if `bats` isn't set up yet when you touch a
-  function, that's the trigger to add it, not a reason to skip.
+- **Don't skip tests to ship faster** — the bats suite exists; every function you touch gets a
+  test in the matching `test/*.bats`, not a "later".
 - **Test over mock**: for pure string/arg-parsing logic, exercise the real function; don't
   reimplement its logic in the test.
 
@@ -124,7 +133,7 @@ Rules:
 - **Don't add external tool dependencies without asking** — every function here assumes a
   specific CLI is present (`convert`, `cryptsetup`, `pngquant`...); adding a new one is a
   deliberate choice, not incidental.
-- **TDD by default** for new or changed logic (see above), once `bats` is introduced.
+- **TDD by default** for new or changed logic (see above) — the bats suite is in place.
 - **Don't silently drop the 80% coverage aspiration** — if a function can't reasonably be
   tested (destructive, hardware-dependent), say so explicitly instead of skipping quietly.
 - **Preserve the existing style**: `local -r` for constants, explicit `unset` of loop
@@ -138,8 +147,18 @@ Rules:
 
 - **Commits and branches OK** — create commits and new branches whenever it makes sense,
   without asking first.
-- **Never push** — no `git push` under any circumstance, and absolutely never
-  `git push --force` / `--force-with-lease`. Leave pushing to the user.
+- **Never push** *(default)* — no `git push` under any circumstance, and absolutely never
+  `git push --force` / `--force-with-lease`. Leave pushing to the user. **Exception:** when
+  **"modo desatendido"** is active, you may push the feature branches you create (never
+  `main`/protected branches, never force) so PRs are ready for review.
+- **Never merge — no permission** — you do NOT have permission to merge anything into any
+  branch, nor to merge any pull request. No `git merge`, no fast-forward integration, no
+  `gh pr merge`. This holds in every mode, **including "modo desatendido"**. Leave every merge
+  to the user.
 - **GitHub via `gh`** — if the `gh` CLI is available, you may open pull requests, issues,
   and similar (comments, labels, etc.). These don't require pushing on your part beyond what
   `gh` itself does for an already-pushed branch.
+- **Branches:** `feat/name`, `fix/description`, `chore/task`.
+- **Every PR must include a manual test plan** — a **How to test manually** section: which
+  functions changed, how to source and invoke them, the exact commands (and any hardware/volume
+  prerequisites), plus `./test/bats/bin/bats test/` and the expected result.
