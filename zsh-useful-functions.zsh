@@ -856,6 +856,23 @@ close_partitions(){
 # user-presence=yes), then lists the device's slots/tokens so the new key can
 # be confirmed. A failing device does not abort the batch; failures are
 # reported at the end and the function returns 1 if any occurred.
+# Enroll a FIDO2 passkey into a single device, then list its slots to confirm.
+# Announces the device first. Runs systemd-cryptenroll with the fixed FIDO2
+# flags; on success runs the no-flag list. Returns the enroll exit code (the
+# verify/list status is informational only).
+_enroll_partitions_one() {
+    local -r dev="$1"
+
+    echo ">>> Enrolling FIDO2 on $dev"
+    if systemd-cryptenroll "$dev" --fido2-device=auto --fido2-with-client-pin=yes --fido2-with-user-presence=yes;
+    then
+        systemd-cryptenroll "$dev"
+        return 0
+    fi
+    return 1
+}
+
+
 enroll-partitions(){
     local -a o_help
     zparseopts -D -E -F -- h=o_help -help=o_help 2>/dev/null
@@ -878,5 +895,27 @@ enroll-partitions(){
         return 1
     fi
 
+    local -a failed
+    local i
+    for i in "$@"
+    do
+        if ! _enroll_partitions_one "$i";
+        then
+            failed+=("$i")
+        fi
+    done
+    unset i
+
+    if [ "${#failed[@]}" -ne "0" ];
+    then
+        echo "Failed: ${failed[*]}" >&2
+        return 1
+    fi
     return 0
+}
+
+
+# Back-compat wrapper for the underscore name convention.
+enroll_partitions(){
+    enroll-partitions "$@"
 }
