@@ -852,8 +852,8 @@ close_partitions(){
 
 # Enroll a FIDO2 passkey into a single device, then list its slots to confirm.
 # Announces the device first. Runs systemd-cryptenroll with the fixed FIDO2
-# flags; on success runs the no-flag list. Returns the enroll exit code (the
-# verify/list status is informational only).
+# flags; on success runs the no-flag list. Returns 0 on enroll success, 1 on
+# enroll failure (the verify/list status is informational only).
 _enroll_partitions_one() {
     local -r dev="$1"
 
