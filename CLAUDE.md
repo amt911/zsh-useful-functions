@@ -56,7 +56,7 @@ Confirm the switch briefly when it happens.
   some functions are written with POSIX-ish `[ ]` tests even though the shebang is `#!/bin/zsh`.
 - **External CLI dependencies (assumed installed, not vendored)**: `imagemagick`
   (`magick`, falling back to `convert` on ImageMagick 6), `pngquant`, `cryptsetup`,
-  `systemd-cryptsetup`, `lspci`, `btrfs-progs`, util-linux (`lsblk`, `mount --mkdir`),
+  `systemd-cryptsetup`, `systemd-cryptenroll`, `lspci`, `btrfs-progs`, util-linux (`lsblk`, `mount --mkdir`),
   coreutils (`dd`, `od`, `cmp`, `stat`, `numfmt`), `ntfs-3g` (NTFS mounts in
   `mount_partitions`), `rsync` (`rsync_fanout`).
 - No package manager, no build step — this is a single sourced `.zsh` file.
